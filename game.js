@@ -1,108 +1,236 @@
 // Game State
-let gameState = {
-    money: 0,
+const gameState = {
+    money: 100,
     perClick: 1,
     perSecond: 0,
-    buildings: {
-        lemonadeStand: { cost: 10, income: 1, count: 0 },
-        shop: { cost: 100, income: 5, count: 0 },
-        factory: { cost: 1000, income: 25, count: 0 },
-        skyscraper: { cost: 10000, income: 150, count: 0 }
-    },
+    totalLand: 10,
+    usedLand: 0,
+    landCost: 500,
+    buildings: [],
     upgrades: {
-        doubleIncome: { cost: 1000, purchased: false, multiplier: 2 },
-        clickPower: { cost: 500, purchased: false, multiplier: 2 },
-        autoClicker: { cost: 5000, purchased: false }
+        clickPower: { 
+            name: "Double Click", 
+            description: "Double your click value", 
+            cost: 200, 
+            purchased: false, 
+            multiplier: 2,
+            icon: "⚡"
+        },
+        landDiscount: { 
+            name: "Land Discount", 
+            description: "Reduce land cost by 20%", 
+            cost: 1000, 
+            purchased: false, 
+            discount: 0.2,
+            icon: "🏙️"
+        },
+        autoClicker: { 
+            name: "Auto Clicker", 
+            description: "Automatically click every second", 
+            cost: 5000, 
+            purchased: false,
+            icon: "🤖"
+        }
     },
     lastSave: Date.now()
 };
 
-// DOM Elements
-const moneyElement = document.getElementById('money');
-const perSecondElement = document.getElementById('per-second');
-const perClickElement = document.getElementById('per-click');
-const clickButton = document.getElementById('click-button');
-const buildingsContainer = document.getElementById('buildings-container');
-const upgradesContainer = document.getElementById('upgrades-container');
-const saveButton = document.getElementById('save-btn');
-const resetButton = document.getElementById('reset-btn');
-const notification = document.getElementById('notification');
+// Building Templates
+const buildingTemplates = {
+    lemonadeStand: {
+        id: "lemonadeStand",
+        name: "Lemonade Stand",
+        baseCost: 50,
+        baseIncome: 2,
+        space: 1,
+        color1: "#FFD54F",
+        color2: "#FFB300",
+        icon: "🍋",
+        type: "stand",
+        menuOptions: [
+            { name: "Basic Lemonade", incomeMultiplier: 1, cost: 0 },
+            { name: "Premium Lemonade", incomeMultiplier: 1.5, cost: 100 },
+            { name: "Lemonade + Cookies", incomeMultiplier: 2, cost: 300 }
+        ],
+        currentMenu: 0
+    },
+    apartment: {
+        id: "apartment",
+        name: "Apartment",
+        baseCost: 200,
+        baseIncome: 8,
+        space: 2,
+        color1: "#7986CB",
+        color2: "#3F51B5",
+        icon: "🏢",
+        type: "residential",
+        tenants: [
+            { name: "Student", incomeMultiplier: 1, reliability: 0.9 },
+            { name: "Professional", incomeMultiplier: 1.5, reliability: 0.95 },
+            { name: "Business Owner", incomeMultiplier: 2.5, reliability: 0.8 }
+        ],
+        currentTenant: 0
+    },
+    restaurant: {
+        id: "restaurant",
+        name: "Restaurant",
+        baseCost: 800,
+        baseIncome: 25,
+        space: 3,
+        color1: "#E57373",
+        color2: "#C62828",
+        icon: "🍽️",
+        type: "commercial",
+        menuOptions: [
+            { name: "Fast Food", incomeMultiplier: 1, cost: 0 },
+            { name: "Family Restaurant", incomeMultiplier: 1.8, cost: 500 },
+            { name: "Fine Dining", incomeMultiplier: 3, cost: 2000 }
+        ],
+        currentMenu: 0
+    },
+    factory: {
+        id: "factory",
+        name: "Factory",
+        baseCost: 2000,
+        baseIncome: 60,
+        space: 4,
+        color1: "#90A4AE",
+        color2: "#546E7A",
+        icon: "🏭",
+        type: "industrial"
+    },
+    mall: {
+        id: "mall",
+        name: "Shopping Mall",
+        baseCost: 5000,
+        baseIncome: 150,
+        space: 5,
+        color1: "#BA68C8",
+        color2: "#7B1FA2",
+        icon: "🏬",
+        type: "commercial"
+    }
+};
 
-// Initialize the game
+// DOM Elements
+const elements = {
+    money: document.getElementById('money'),
+    perSecond: document.getElementById('per-second'),
+    perClick: document.getElementById('per-click'),
+    landUsed: document.getElementById('land-used'),
+    landTotal: document.getElementById('land-total'),
+    landFill: document.getElementById('land-fill'),
+    landPercent: document.getElementById('land-percent'),
+    landCost: document.getElementById('land-cost'),
+    cityGrid: document.getElementById('city-grid'),
+    buildingsContainer: document.getElementById('buildings-container'),
+    upgradesContainer: document.getElementById('upgrades-container'),
+    clickButton: document.getElementById('click-button'),
+    buyLandBtn: document.getElementById('buy-land-btn'),
+    buildingModal: document.getElementById('building-modal'),
+    modalContent: document.getElementById('modal-content'),
+    saveBtn: document.getElementById('save-btn'),
+    loadBtn: document.getElementById('load-btn'),
+    resetBtn: document.getElementById('reset-btn'),
+    notification: document.getElementById('notification')
+};
+
+// Initialize Game
 function init() {
     loadGame();
-    renderBuildings();
+    renderCityGrid();
+    renderBuildingsShop();
     renderUpgrades();
     updateDisplay();
     
     // Set up game loop
-    setInterval(gameLoop, 100);
+    setInterval(gameLoop, 1000);
     
-    // Set up event listeners
-    clickButton.addEventListener('click', handleClick);
-    saveButton.addEventListener('click', saveGame);
-    resetButton.addEventListener('click', resetGame);
+    // Set up auto-clicker
+    setInterval(autoClick, 1000);
     
-    // Auto-clicker functionality
-    setInterval(() => {
-        if (gameState.upgrades.autoClicker.purchased) {
-            handleClick(true);
+    // Event Listeners
+    elements.clickButton.addEventListener('click', handleClick);
+    elements.buyLandBtn.addEventListener('click', buyMoreLand);
+    elements.saveBtn.addEventListener('click', saveGame);
+    elements.loadBtn.addEventListener('click', loadGame);
+    elements.resetBtn.addEventListener('click', resetGame);
+    
+    // Modal close button
+    document.querySelector('.close-modal').addEventListener('click', closeModal);
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+        if (e.target === elements.buildingModal) {
+            closeModal();
         }
-    }, 1000);
+    });
+    
+    showNotification("Welcome to Mini City Tycoon!", "success");
 }
 
-// Game loop
+// Game Loop
 function gameLoop() {
-    // Calculate passive income
-    let incomePerSecond = 0;
-    for (const building in gameState.buildings) {
-        const b = gameState.buildings[building];
-        incomePerSecond += b.income * b.count;
-    }
-    
-    // Apply double income upgrade if purchased
-    if (gameState.upgrades.doubleIncome.purchased) {
-        incomePerSecond *= gameState.upgrades.doubleIncome.multiplier;
-    }
-    
-    // Add passive income
-    const now = Date.now();
-    const timePassed = now - gameState.lastSave;
-    const income = (incomePerSecond * timePassed) / 1000;
-    gameState.money += income;
-    gameState.perSecond = incomePerSecond;
-    gameState.lastSave = now;
-    
+    calculateIncome();
     updateDisplay();
+    saveGameAuto();
 }
 
-// Handle click event
-function handleClick(isAuto = false) {
+// Calculate Passive Income
+function calculateIncome() {
+    let totalIncome = 0;
+    
+    gameState.buildings.forEach(building => {
+        let buildingIncome = building.baseIncome;
+        
+        // Apply menu upgrades
+        if (building.menuOptions && building.currentMenu > 0) {
+            const menu = building.menuOptions[building.currentMenu];
+            buildingIncome *= menu.incomeMultiplier;
+        }
+        
+        // Apply tenant bonuses
+        if (building.tenants && building.currentTenant > 0) {
+            const tenant = building.tenants[building.currentTenant];
+            buildingIncome *= tenant.incomeMultiplier;
+        }
+        
+        totalIncome += buildingIncome;
+    });
+    
+    gameState.perSecond = totalIncome;
+    gameState.money += totalIncome;
+}
+
+// Handle Click
+function handleClick() {
     let clickValue = gameState.perClick;
     
-    // Apply click power upgrade if purchased
+    // Apply click power upgrade
     if (gameState.upgrades.clickPower.purchased) {
         clickValue *= gameState.upgrades.clickPower.multiplier;
     }
     
     gameState.money += clickValue;
     
-    // Visual feedback for manual clicks
-    if (!isAuto) {
-        moneyElement.classList.add('money-increase');
-        setTimeout(() => {
-            moneyElement.classList.remove('money-increase');
-        }, 300);
-        
-        // Create a floating "+$" text
-        createFloatingText(clickButton, `+$${clickValue}`);
-    }
+    // Visual effect
+    elements.money.classList.add('money-pop');
+    setTimeout(() => {
+        elements.money.classList.remove('money-pop');
+    }, 300);
     
+    createFloatingText(elements.clickButton, `+$${clickValue}`);
     updateDisplay();
-    saveGame();
 }
 
-// Create floating text animation
+// Auto Clicker
+function autoClick() {
+    if (gameState.upgrades.autoClicker.purchased) {
+        handleClick();
+    }
+}
+
+// Create Floating Text
 function createFloatingText(element, text) {
     const floatingText = document.createElement('div');
     floatingText.textContent = text;
@@ -112,6 +240,7 @@ function createFloatingText(element, text) {
     floatingText.style.fontSize = '1.2rem';
     floatingText.style.pointerEvents = 'none';
     floatingText.style.zIndex = '1000';
+    floatingText.classList.add('float-up');
     
     const rect = element.getBoundingClientRect();
     floatingText.style.left = `${rect.left + rect.width / 2}px`;
@@ -119,135 +248,166 @@ function createFloatingText(element, text) {
     
     document.body.appendChild(floatingText);
     
-    // Animate the text
-    let opacity = 1;
-    let y = 0;
-    const animation = setInterval(() => {
-        opacity -= 0.02;
-        y -= 2;
-        floatingText.style.opacity = opacity;
-        floatingText.style.transform = `translate(-50%, ${y}px)`;
-        
-        if (opacity <= 0) {
-            clearInterval(animation);
-            document.body.removeChild(floatingText);
-        }
-    }, 20);
+    setTimeout(() => {
+        document.body.removeChild(floatingText);
+    }, 1000);
 }
 
-// Render buildings in the UI
-function renderBuildings() {
-    buildingsContainer.innerHTML = '';
+// Render City Grid
+function renderCityGrid() {
+    elements.cityGrid.innerHTML = '';
     
-    const buildings = [
-        { id: 'lemonadeStand', name: 'Lemonade Stand', icon: '🍋' },
-        { id: 'shop', name: 'Shop', icon: '🛒' },
-        { id: 'factory', name: 'Factory', icon: '🏭' },
-        { id: 'skyscraper', name: 'Skyscraper', icon: '🏙️' }
-    ];
-    
-    buildings.forEach(building => {
-        const b = gameState.buildings[building.id];
-        const buildingElement = document.createElement('div');
-        buildingElement.className = 'building-item';
+    for (let i = 0; i < gameState.totalLand; i++) {
+        const plot = document.createElement('div');
+        plot.className = 'land-plot empty';
+        plot.dataset.index = i;
         
-        buildingElement.innerHTML = `
-            <div class="building-info">
-                <div class="building-name">${building.icon} ${building.name}</div>
-                <div class="building-income">Income: $${b.income}/sec</div>
+        // Check if this plot has a building
+        const building = gameState.buildings.find(b => b.plotIndex === i);
+        
+        if (building) {
+            plot.className = 'land-plot occupied';
+            plot.style.color = building.color1;
+            
+            plot.innerHTML = `
+                <div class="building-shape" style="background:${building.color1}"></div>
+                <div class="building-name">${building.name}</div>
+            `;
+            
+            plot.addEventListener('click', () => openBuildingModal(building));
+        } else {
+            plot.innerHTML = `<div class="plot-plus">+</div>`;
+            plot.addEventListener('click', () => selectPlotForBuilding(i));
+        }
+        
+        elements.cityGrid.appendChild(plot);
+    }
+    
+    updateLandDisplay();
+}
+
+// Update Land Display
+function updateLandDisplay() {
+    const percent = Math.min(100, (gameState.usedLand / gameState.totalLand) * 100);
+    elements.landFill.style.width = `${percent}%`;
+    elements.landUsed.textContent = gameState.usedLand;
+    elements.landTotal.textContent = gameState.totalLand;
+    elements.landPercent.textContent = `${Math.round(percent)}%`;
+    elements.landCost.textContent = gameState.landCost;
+}
+
+// Render Buildings Shop
+function renderBuildingsShop() {
+    elements.buildingsContainer.innerHTML = '';
+    
+    for (const [key, template] of Object.entries(buildingTemplates)) {
+        const item = document.createElement('div');
+        const canAfford = gameState.money >= template.baseCost;
+        const hasSpace = (gameState.usedLand + template.space) <= gameState.totalLand;
+        
+        item.className = `shop-item ${canAfford && hasSpace ? '' : 'disabled'}`;
+        item.style.setProperty('--color1', template.color1);
+        item.style.setProperty('--color2', template.color2);
+        
+        item.innerHTML = `
+            <div class="building-icon">${template.icon}</div>
+            <div class="building-details">
+                <h4>${template.name}</h4>
+                <p class="building-income">$${template.baseIncome}/s</p>
+                <p class="building-cost">Cost: $${template.baseCost}</p>
+                <p class="building-space">Space: ${template.space} plots</p>
             </div>
-            <div class="building-count">${b.count}</div>
-            <button class="buy-button" data-building="${building.id}">
-                Buy ($${b.cost})
-            </button>
         `;
         
-        buildingsContainer.appendChild(buildingElement);
-    });
-    
-    // Add event listeners to buy buttons
-    document.querySelectorAll('.building-item .buy-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const buildingId = button.getAttribute('data-building');
-            buyBuilding(buildingId);
-        });
-    });
-}
-
-// Render upgrades in the UI
-function renderUpgrades() {
-    upgradesContainer.innerHTML = '';
-    
-    const upgrades = [
-        { 
-            id: 'clickPower', 
-            name: 'Click Power x2', 
-            description: 'Doubles money per click',
-            icon: '⚡'
-        },
-        { 
-            id: 'doubleIncome', 
-            name: 'Double Income', 
-            description: 'Doubles all building income',
-            icon: '💰'
-        },
-        { 
-            id: 'autoClicker', 
-            name: 'Auto Clicker', 
-            description: 'Automatically clicks every second',
-            icon: '🤖'
+        if (canAfford && hasSpace) {
+            item.addEventListener('click', () => prepareToBuild(key));
         }
-    ];
-    
-    upgrades.forEach(upgrade => {
-        const u = gameState.upgrades[upgrade.id];
-        const upgradeElement = document.createElement('div');
-        upgradeElement.className = 'upgrade-item';
         
-        upgradeElement.innerHTML = `
-            <div class="upgrade-info">
-                <div class="upgrade-name">${upgrade.icon} ${upgrade.name}</div>
-                <div class="upgrade-description">${upgrade.description}</div>
-            </div>
-            <div class="upgrade-price">$${u.cost}</div>
-            <button class="buy-button" data-upgrade="${upgrade.id}" ${u.purchased ? 'disabled' : ''}>
-                ${u.purchased ? 'Purchased' : 'Buy'}
-            </button>
-        `;
-        
-        upgradesContainer.appendChild(upgradeElement);
-    });
-    
-    // Add event listeners to upgrade buttons
-    document.querySelectorAll('.upgrade-item .buy-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const upgradeId = button.getAttribute('data-upgrade');
-            buyUpgrade(upgradeId);
-        });
-    });
-}
-
-// Buy a building
-function buyBuilding(buildingId) {
-    const building = gameState.buildings[buildingId];
-    
-    if (gameState.money >= building.cost) {
-        gameState.money -= building.cost;
-        building.count++;
-        
-        // Increase cost for next purchase (10% increase)
-        building.cost = Math.floor(building.cost * 1.1);
-        
-        updateDisplay();
-        renderBuildings();
-        saveGame();
-        showNotification(`Purchased ${buildingId.replace(/([A-Z])/g, ' $1').toLowerCase()}!`);
-    } else {
-        showNotification('Not enough money!', 'error');
+        elements.buildingsContainer.appendChild(item);
     }
 }
 
-// Buy an upgrade
+// Prepare to Build
+function prepareToBuild(buildingId) {
+    const template = buildingTemplates[buildingId];
+    showNotification(`Select an empty plot for your ${template.name}`);
+    
+    // Store the building to be placed
+    gameState.buildingToPlace = buildingId;
+}
+
+// Select Plot for Building
+function selectPlotForBuilding(plotIndex) {
+    if (!gameState.buildingToPlace) return;
+    
+    const template = buildingTemplates[gameState.buildingToPlace];
+    
+    // Check if we can afford it
+    if (gameState.money < template.baseCost) {
+        showNotification("Not enough money!", "error");
+        return;
+    }
+    
+    // Check if there's enough space (for multi-plot buildings)
+    if ((gameState.usedLand + template.space) > gameState.totalLand) {
+        showNotification("Not enough land!", "error");
+        return;
+    }
+    
+    // Create building instance
+    const building = {
+        ...JSON.parse(JSON.stringify(template)),
+        plotIndex: plotIndex,
+        id: `${template.id}_${Date.now()}`
+    };
+    
+    // Pay for building
+    gameState.money -= template.baseCost;
+    gameState.usedLand += template.space;
+    
+    // Add to buildings array
+    gameState.buildings.push(building);
+    
+    // Clear building to place
+    gameState.buildingToPlace = null;
+    
+    // Update display
+    renderCityGrid();
+    renderBuildingsShop();
+    updateDisplay();
+    
+    showNotification(`Built ${template.name}!`, "success");
+}
+
+// Render Upgrades
+function renderUpgrades() {
+    elements.upgradesContainer.innerHTML = '';
+    
+    for (const [key, upgrade] of Object.entries(gameState.upgrades)) {
+        const item = document.createElement('div');
+        const canAfford = gameState.money >= upgrade.cost && !upgrade.purchased;
+        
+        item.className = `upgrade-item ${canAfford ? '' : 'disabled'}`;
+        
+        item.innerHTML = `
+            <div class="building-icon">${upgrade.icon}</div>
+            <div class="building-details">
+                <h4>${upgrade.name}</h4>
+                <p>${upgrade.description}</p>
+                <p class="building-cost">$${upgrade.cost}</p>
+                <p>${upgrade.purchased ? '✓ Purchased' : ''}</p>
+            </div>
+        `;
+        
+        if (canAfford) {
+            item.addEventListener('click', () => buyUpgrade(key));
+        }
+        
+        elements.upgradesContainer.appendChild(item);
+    }
+}
+
+// Buy Upgrade
 function buyUpgrade(upgradeId) {
     const upgrade = gameState.upgrades[upgradeId];
     
@@ -255,129 +415,289 @@ function buyUpgrade(upgradeId) {
         gameState.money -= upgrade.cost;
         upgrade.purchased = true;
         
-        // Apply upgrade effects
         if (upgradeId === 'clickPower') {
-            showNotification('Click power doubled!');
-        } else if (upgradeId === 'doubleIncome') {
-            showNotification('All building income doubled!');
-        } else if (upgradeId === 'autoClicker') {
-            showNotification('Auto-clicker activated!');
+            gameState.perClick *= upgrade.multiplier;
+        } else if (upgradeId === 'landDiscount') {
+            gameState.landCost = Math.floor(gameState.landCost * (1 - upgrade.discount));
         }
         
         updateDisplay();
         renderUpgrades();
-        saveGame();
-    } else if (!upgrade.purchased) {
-        showNotification('Not enough money!', 'error');
+        showNotification(`Purchased ${upgrade.name}!`, "success");
     }
 }
 
-// Update the display
-function updateDisplay() {
-    // Format money with commas
-    moneyElement.textContent = `$${formatNumber(gameState.money)}`;
-    perSecondElement.textContent = `$${formatNumber(gameState.perSecond.toFixed(1))}`;
-    perClickElement.textContent = `$${formatNumber(gameState.perClick * (gameState.upgrades.clickPower.purchased ? gameState.upgrades.clickPower.multiplier : 1))}`;
-    
-    // Update building buttons
-    document.querySelectorAll('.building-item .buy-button').forEach(button => {
-        const buildingId = button.getAttribute('data-building');
-        const building = gameState.buildings[buildingId];
-        button.textContent = `Buy ($${formatNumber(building.cost)})`;
-        button.disabled = gameState.money < building.cost;
-    });
-    
-    // Update upgrade buttons
-    document.querySelectorAll('.upgrade-item .buy-button').forEach(button => {
-        const upgradeId = button.getAttribute('data-upgrade');
-        const upgrade = gameState.upgrades[upgradeId];
+// Buy More Land
+function buyMoreLand() {
+    if (gameState.money >= gameState.landCost) {
+        gameState.money -= gameState.landCost;
+        gameState.totalLand += 5;
+        gameState.landCost = Math.floor(gameState.landCost * 1.5);
         
-        if (upgrade.purchased) {
-            button.textContent = 'Purchased';
-            button.disabled = true;
-        } else {
-            button.textContent = `Buy ($${formatNumber(upgrade.cost)})`;
-            button.disabled = gameState.money < upgrade.cost;
-        }
-    });
+        renderCityGrid();
+        updateDisplay();
+        showNotification("Purchased more land!", "success");
+    } else {
+        showNotification("Not enough money!", "error");
+    }
 }
 
-// Show notification
-function showNotification(message, type = 'success') {
-    notification.textContent = message;
-    notification.className = 'notification';
+// Open Building Modal
+function openBuildingModal(building) {
+    elements.modalContent.innerHTML = '';
     
-    if (type === 'error') {
-        notification.style.backgroundColor = '#dc3545';
-    } else {
-        notification.style.backgroundColor = '#28a745';
+    // Header
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.innerHTML = `
+        <h3>${building.name}</h3>
+        <p>Income: $${calculateBuildingIncome(building)}/s</p>
+    `;
+    elements.modalContent.appendChild(header);
+    
+    // Menu Options (for stands and restaurants)
+    if (building.menuOptions) {
+        const menuSection = document.createElement('div');
+        menuSection.className = 'modal-section';
+        menuSection.innerHTML = '<h4>Menu Options</h4>';
+        
+        building.menuOptions.forEach((menu, index) => {
+            const option = document.createElement('div');
+            option.className = `menu-option ${building.currentMenu === index ? 'selected' : ''}`;
+            option.innerHTML = `
+                <div>
+                    <strong>${menu.name}</strong>
+                    <p>${menu.cost > 0 ? `Upgrade Cost: $${menu.cost}` : 'Basic Menu'}</p>
+                </div>
+                <div class="rent-income">×${menu.incomeMultiplier}</div>
+            `;
+            
+            if (menu.cost === 0 || gameState.money >= menu.cost) {
+                option.addEventListener('click', () => upgradeMenu(building, index, menu.cost));
+            } else {
+                option.style.opacity = '0.5';
+                option.style.cursor = 'not-allowed';
+            }
+            
+            menuSection.appendChild(option);
+        });
+        
+        elements.modalContent.appendChild(menuSection);
     }
     
-    notification.classList.add('show');
+    // Tenant Options (for apartments)
+    if (building.tenants) {
+        const tenantSection = document.createElement('div');
+        tenantSection.className = 'modal-section';
+        tenantSection.innerHTML = '<h4>Tenant Management</h4>';
+        
+        building.tenants.forEach((tenant, index) => {
+            const option = document.createElement('div');
+            option.className = `tenant-option ${building.currentTenant === index ? 'selected' : ''}`;
+            option.innerHTML = `
+                <div>
+                    <strong>${tenant.name}</strong>
+                    <p>Reliability: ${tenant.reliability * 100}%</p>
+                </div>
+                <div class="rent-income">×${tenant.incomeMultiplier}</div>
+            `;
+            
+            option.addEventListener('click', () => changeTenant(building, index));
+            tenantSection.appendChild(option);
+        });
+        
+        elements.modalContent.appendChild(tenantSection);
+    }
+    
+    // Sell Button
+    const sellButton = document.createElement('button');
+    sellButton.className = 'btn danger';
+    sellButton.innerHTML = '<i class="fas fa-trash"></i> Sell Building';
+    sellButton.addEventListener('click', () => sellBuilding(building));
+    elements.modalContent.appendChild(sellButton);
+    
+    elements.buildingModal.style.display = 'flex';
+}
+
+// Calculate Building Income
+function calculateBuildingIncome(building) {
+    let income = building.baseIncome;
+    
+    if (building.menuOptions && building.currentMenu > 0) {
+        income *= building.menuOptions[building.currentMenu].incomeMultiplier;
+    }
+    
+    if (building.tenants && building.currentTenant > 0) {
+        income *= building.tenants[building.currentTenant].incomeMultiplier;
+    }
+    
+    return income;
+}
+
+// Upgrade Menu
+function upgradeMenu(building, menuIndex, cost) {
+    if (building.currentMenu === menuIndex) return;
+    
+    if (cost > 0 && gameState.money >= cost) {
+        gameState.money -= cost;
+        building.currentMenu = menuIndex;
+        showNotification(`Upgraded to ${building.menuOptions[menuIndex].name}!`, "success");
+        closeModal();
+        updateDisplay();
+    } else if (cost === 0) {
+        building.currentMenu = menuIndex;
+        showNotification(`Changed to ${building.menuOptions[menuIndex].name}`, "success");
+        closeModal();
+    } else {
+        showNotification("Not enough money!", "error");
+    }
+}
+
+// Change Tenant
+function changeTenant(building, tenantIndex) {
+    if (building.currentTenant === tenantIndex) return;
+    
+    building.currentTenant = tenantIndex;
+    showNotification(`Changed tenant to ${building.tenants[tenantIndex].name}!`, "success");
+    closeModal();
+}
+
+// Sell Building
+function sellBuilding(building) {
+    const refund = Math.floor(building.baseCost * 0.7);
+    gameState.money += refund;
+    gameState.usedLand -= building.space;
+    
+    // Remove building
+    gameState.buildings = gameState.buildings.filter(b => b.id !== building.id);
+    
+    closeModal();
+    renderCityGrid();
+    renderBuildingsShop();
+    updateDisplay();
+    showNotification(`Sold ${building.name} for $${refund}`, "success");
+}
+
+// Close Modal
+function closeModal() {
+    elements.buildingModal.style.display = 'none';
+}
+
+// Update Display
+function updateDisplay() {
+    // Format money
+    const formatMoney = (amount) => {
+        if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+        if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}K`;
+        return `$${Math.floor(amount)}`;
+    };
+    
+    elements.money.textContent = formatMoney(gameState.money);
+    elements.perSecond.textContent = formatMoney(gameState.perSecond);
+    elements.perClick.textContent = formatMoney(gameState.perClick);
+    
+    // Update button states
+    elements.buyLandBtn.disabled = gameState.money < gameState.landCost;
+    elements.buyLandBtn.innerHTML = `<i class="fas fa-expand"></i> Buy More Land ($${gameState.landCost})`;
+}
+
+// Show Notification
+function showNotification(message, type = "success") {
+    elements.notification.textContent = message;
+    elements.notification.className = 'notification';
+    elements.notification.classList.add(type === "error" ? "error" : "success", "show");
     
     setTimeout(() => {
-        notification.classList.remove('show');
+        elements.notification.classList.remove("show");
     }, 3000);
 }
 
-// Format numbers with commas
-function formatNumber(num) {
-    return Math.floor(num).toLocaleString();
-}
-
-// Save game to localStorage
+// Save Game
 function saveGame() {
-    gameState.lastSave = Date.now();
-    localStorage.setItem('miniCityTycoonSave', JSON.stringify(gameState));
-    showNotification('Game saved!');
+    const saveData = {
+        ...gameState,
+        lastSave: Date.now()
+    };
+    
+    localStorage.setItem('miniCityTycoonSave', JSON.stringify(saveData));
+    showNotification("Game saved!", "success");
 }
 
-// Load game from localStorage
+// Auto Save
+function saveGameAuto() {
+    if (Date.now() - gameState.lastSave > 30000) { // Save every 30 seconds
+        saveGame();
+    }
+}
+
+// Load Game
 function loadGame() {
     const saved = localStorage.getItem('miniCityTycoonSave');
     if (saved) {
-        const parsed = JSON.parse(saved);
+        const savedState = JSON.parse(saved);
         
-        // Merge saved state with default state to ensure all properties exist
-        gameState = {
-            ...gameState,
-            ...parsed,
-            buildings: { ...gameState.buildings, ...parsed.buildings },
-            upgrades: { ...gameState.upgrades, ...parsed.upgrades }
-        };
+        // Merge with current state
+        Object.assign(gameState, savedState);
         
-        showNotification('Game loaded!');
-    }
-}
-
-// Reset game
-function resetGame() {
-    if (confirm('Are you sure you want to reset your game? All progress will be lost.')) {
-        localStorage.removeItem('miniCityTycoonSave');
-        gameState = {
-            money: 0,
-            perClick: 1,
-            perSecond: 0,
-            buildings: {
-                lemonadeStand: { cost: 10, income: 1, count: 0 },
-                shop: { cost: 100, income: 5, count: 0 },
-                factory: { cost: 1000, income: 25, count: 0 },
-                skyscraper: { cost: 10000, income: 150, count: 0 }
-            },
-            upgrades: {
-                doubleIncome: { cost: 1000, purchased: false, multiplier: 2 },
-                clickPower: { cost: 500, purchased: false, multiplier: 2 },
-                autoClicker: { cost: 5000, purchased: false }
-            },
-            lastSave: Date.now()
-        };
+        // Ensure arrays are properly loaded
+        if (!Array.isArray(gameState.buildings)) {
+            gameState.buildings = [];
+        }
         
         updateDisplay();
-        renderBuildings();
-        renderUpgrades();
-        showNotification('Game reset!');
+        showNotification("Game loaded!", "success");
     }
 }
 
-// Initialize the game when the page loads
+// Reset Game
+function resetGame() {
+    if (confirm("Are you sure you want to reset your game? All progress will be lost.")) {
+        localStorage.removeItem('miniCityTycoonSave');
+        
+        // Reset to initial state
+        Object.assign(gameState, {
+            money: 100,
+            perClick: 1,
+            perSecond: 0,
+            totalLand: 10,
+            usedLand: 0,
+            landCost: 500,
+            buildings: [],
+            upgrades: {
+                clickPower: { 
+                    name: "Double Click", 
+                    description: "Double your click value", 
+                    cost: 200, 
+                    purchased: false, 
+                    multiplier: 2,
+                    icon: "⚡"
+                },
+                landDiscount: { 
+                    name: "Land Discount", 
+                    description: "Reduce land cost by 20%", 
+                    cost: 1000, 
+                    purchased: false, 
+                    discount: 0.2,
+                    icon: "🏙️"
+                },
+                autoClicker: { 
+                    name: "Auto Clicker", 
+                    description: "Automatically click every second", 
+                    cost: 5000, 
+                    purchased: false,
+                    icon: "🤖"
+                }
+            },
+            lastSave: Date.now()
+        });
+        
+        renderCityGrid();
+        renderBuildingsShop();
+        renderUpgrades();
+        updateDisplay();
+        showNotification("Game reset!", "success");
+    }
+}
+
+// Initialize the game when page loads
 window.addEventListener('DOMContentLoaded', init);
