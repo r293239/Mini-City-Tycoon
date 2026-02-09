@@ -14,16 +14,6 @@ const gameState = {
     
     // Current map
     currentMap: 'downtown',
-    maps: {
-        downtown: { 
-            unlocked: true, 
-            name: 'Downtown', 
-            description: 'A bustling urban center perfect for starting your empire',
-            incomeMultiplier: 1.0,
-            landMultiplier: 1.0,
-            unlockCost: 0
-        }
-    },
     
     // Buildings data
     buildings: [],
@@ -181,7 +171,8 @@ const gameState = {
     // Game settings
     lastSave: Date.now(),
     lastUpdate: Date.now(),
-    autoSaveInterval: 30000
+    autoSaveInterval: 30000,
+    isInitialized: false
 };
 
 // DOM Elements
@@ -205,8 +196,6 @@ const elements = {
     currentMap: document.getElementById('current-map'),
     mapNameDisplay: document.getElementById('map-name-display'),
     mapDescription: document.getElementById('map-description'),
-    nextMapPrice: document.getElementById('next-map-price'),
-    mapProgress: document.getElementById('map-progress'),
     
     // Containers
     landGrid: document.getElementById('land-grid'),
@@ -217,6 +206,8 @@ const elements = {
     dragPreview: document.getElementById('drag-preview'),
     dragGhost: document.getElementById('drag-ghost'),
     dragInstruction: document.getElementById('drag-instruction'),
+    selectedBuildingInfo: document.getElementById('selected-building-info'),
+    draggingName: document.getElementById('dragging-name'),
     
     // Buttons
     clickButton: document.getElementById('click-button'),
@@ -241,6 +232,8 @@ const elements = {
 
 // Game Initialization
 function init() {
+    if (gameState.isInitialized) return;
+    
     console.log('Initializing Mini City Tycoon...');
     
     // Load saved game
@@ -258,8 +251,10 @@ function init() {
     // Start game loops
     startGameLoops();
     
+    gameState.isInitialized = true;
+    
     // Show welcome message
-    showNotification('Welcome to Mini City Tycoon! Drag buildings from the shop to the map.', 'success');
+    showNotification('Welcome to Mini City Tycoon! Drag buildings from the shop to green plots.', 'success');
     
     console.log('Game initialized successfully!');
 }
@@ -302,14 +297,28 @@ function setupEventListeners() {
             e.target.style.display = 'none';
         }
     });
+    
+    // Prevent context menu on drag ghost
+    elements.dragGhost?.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // Setup Drag and Drop System
 function setupDragAndDrop() {
     // Prevent default drag behaviors
-    document.addEventListener('dragstart', (e) => e.preventDefault());
-    document.addEventListener('dragover', (e) => e.preventDefault());
-    document.addEventListener('drop', (e) => e.preventDefault());
+    document.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+        return false;
+    });
+    
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        return false;
+    });
+    
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        return false;
+    });
     
     // Mouse move for dragging
     document.addEventListener('mousemove', handleMouseMove);
@@ -324,10 +333,25 @@ function setupDragAndDrop() {
 function handleMouseMove(e) {
     if (!gameState.draggingBuilding) return;
     
-    const mouseX = e.clientX || (e.touches && e.touches[0].clientX);
-    const mouseY = e.clientY || (e.touches && e.touches[0].clientY);
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
     
-    if (!mouseX || !mouseY) return;
+    // Update drag ghost position
+    updateDragGhost(mouseX, mouseY);
+    
+    // Update drag preview on map
+    updateDragPreview(mouseX, mouseY);
+}
+
+// Handle Touch Move
+function handleTouchMove(e) {
+    if (!gameState.draggingBuilding || e.touches.length !== 1) return;
+    
+    e.preventDefault();
+    
+    const touch = e.touches[0];
+    const mouseX = touch.clientX;
+    const mouseY = touch.clientY;
     
     // Update drag ghost position
     updateDragGhost(mouseX, mouseY);
@@ -340,8 +364,17 @@ function handleMouseMove(e) {
 function handleMouseUp(e) {
     if (!gameState.draggingBuilding) return;
     
-    const mouseX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
-    const mouseY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+    let mouseX, mouseY;
+    
+    if (e.type === 'touchend') {
+        if (e.changedTouches.length !== 1) return;
+        const touch = e.changedTouches[0];
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+    } else {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+    }
     
     if (mouseX && mouseY) {
         tryPlaceBuilding(mouseX, mouseY);
@@ -349,13 +382,6 @@ function handleMouseUp(e) {
     
     // Clear dragging state
     clearDragging();
-}
-
-// Handle Touch Move
-function handleTouchMove(e) {
-    if (!gameState.draggingBuilding) return;
-    e.preventDefault();
-    handleMouseMove(e);
 }
 
 // Start Dragging a Building
@@ -375,6 +401,13 @@ function startDraggingBuilding(buildingId, e) {
         return;
     }
     
+    // Check if there are available purchased plots
+    const purchasedPlots = document.querySelectorAll('.land-plot.purchased:not(.occupied)');
+    if (purchasedPlots.length === 0) {
+        showNotification('No available plots! Buy more land or sell buildings.', 'error');
+        return;
+    }
+    
     // Set dragging state
     gameState.draggingBuilding = {
         template: template,
@@ -382,32 +415,43 @@ function startDraggingBuilding(buildingId, e) {
     };
     
     // Get start position
-    const rect = e.target.getBoundingClientRect();
-    gameState.dragStartPos = {
-        x: e.clientX || (e.touches && e.touches[0].clientX),
-        y: e.clientY || (e.touches && e.touches[0].clientY)
-    };
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
     
-    gameState.dragOffset = {
-        x: gameState.dragStartPos.x - rect.left,
-        y: gameState.dragStartPos.y - rect.top
-    };
-    
-    // Update UI
-    e.target.classList.add('dragging');
-    showDragGhost(template);
-    showDragPreview();
-    
-    // Update instruction
-    elements.dragInstruction.textContent = 'Drag to an empty green plot';
+    if (clientX && clientY) {
+        gameState.dragStartPos = {
+            x: clientX,
+            y: clientY
+        };
+        
+        const rect = e.target.closest('.building-item').getBoundingClientRect();
+        gameState.dragOffset = {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+        
+        // Update UI
+        e.target.closest('.building-item').classList.add('dragging');
+        showDragGhost(template);
+        showDragPreview();
+        
+        // Show selected building info
+        elements.selectedBuildingInfo.style.display = 'block';
+        elements.draggingName.textContent = template.name;
+        
+        // Update instruction
+        elements.dragInstruction.textContent = 'Drag to a green plot';
+        elements.dragInstruction.style.color = '#4cc9f0';
+    }
 }
 
 // Update Drag Ghost
 function updateDragGhost(mouseX, mouseY) {
     if (!gameState.draggingBuilding || !elements.dragGhost) return;
     
-    elements.dragGhost.style.left = `${mouseX - gameState.dragOffset.x}px`;
-    elements.dragGhost.style.top = `${mouseY - gameState.dragOffset.y}px`;
+    elements.dragGhost.style.left = `${mouseX}px`;
+    elements.dragGhost.style.top = `${mouseY}px`;
+    elements.dragGhost.style.transform = 'translate(-50%, -50%)';
 }
 
 // Show Drag Ghost
@@ -443,6 +487,7 @@ function showDragPreview() {
 function hideDragPreview() {
     if (!elements.dragPreview) return;
     elements.dragPreview.classList.remove('show');
+    elements.dragPreview.style.display = 'none';
 }
 
 // Update Drag Preview
@@ -461,12 +506,13 @@ function updateDragPreview(mouseX, mouseY) {
     }
     
     // Calculate which plot we're over
-    const plotSize = mapRect.width / 8; // 8x8 grid
+    const gridSize = Math.sqrt(gameState.totalLand);
+    const plotSize = mapRect.width / gridSize;
     const plotX = Math.floor(relativeX / plotSize);
     const plotY = Math.floor(relativeY / plotSize);
     
     // Check if plot is valid
-    const plotIndex = plotY * 8 + plotX;
+    const plotIndex = plotY * gridSize + plotX;
     const isValid = isValidPlotForBuilding(plotIndex);
     
     // Update preview position and style
@@ -479,7 +525,7 @@ function updateDragPreview(mouseX, mouseY) {
     if (isValid) {
         elements.dragPreview.classList.remove('invalid');
         elements.dragPreview.classList.add('valid');
-        elements.dragPreview.style.backgroundColor = 'rgba(16, 185, 129, 0.3)';
+        elements.dragPreview.style.backgroundColor = 'rgba(76, 175, 80, 0.3)';
     } else {
         elements.dragPreview.classList.remove('valid');
         elements.dragPreview.classList.add('invalid');
@@ -496,8 +542,8 @@ function isValidPlotForBuilding(plotIndex) {
     
     const template = gameState.draggingBuilding.template;
     
-    // Check if plot exists
-    if (plotIndex >= gameState.totalLand) return false;
+    // Check if plot exists and is within totalLand
+    if (plotIndex < 0 || plotIndex >= gameState.totalLand) return false;
     
     // Check if plot is already occupied
     const existingBuilding = gameState.buildings.find(b => b.plotIndex === plotIndex);
@@ -517,7 +563,7 @@ function tryPlaceBuilding(mouseX, mouseY) {
     if (gameState.hoverPlot.valid) {
         placeBuilding(gameState.draggingBuilding.buildingId, gameState.hoverPlot.index);
     } else {
-        showNotification('Cannot place building here! Make sure the plot is purchased and empty.', 'error');
+        showNotification('Cannot place building here! Plot must be purchased and empty.', 'error');
     }
 }
 
@@ -533,6 +579,12 @@ function placeBuilding(buildingId, plotIndex) {
     
     if (gameState.usedLand + template.space > gameState.totalLand) {
         showNotification('Not enough land! Buy more land first.', 'error');
+        return;
+    }
+    
+    const existingBuilding = gameState.buildings.find(b => b.plotIndex === plotIndex);
+    if (existingBuilding) {
+        showNotification('This plot is already occupied!', 'error');
         return;
     }
     
@@ -557,7 +609,7 @@ function placeBuilding(buildingId, plotIndex) {
     renderBuildingsShop();
     updateDisplay();
     
-    showNotification(`Placed ${template.name}!`, 'success');
+    showNotification(`Built ${template.name}! Income: $${template.income}/sec`, 'success');
 }
 
 // Clear Dragging State
@@ -574,8 +626,12 @@ function clearDragging() {
     hideDragGhost();
     hideDragPreview();
     
+    // Hide selected building info
+    elements.selectedBuildingInfo.style.display = 'none';
+    
     // Reset instruction
-    elements.dragInstruction.textContent = 'Drag buildings from shop to map';
+    elements.dragInstruction.textContent = 'Click and drag buildings';
+    elements.dragInstruction.style.color = '';
 }
 
 // Start Game Loops
@@ -601,6 +657,8 @@ function gameLoop() {
     const now = Date.now();
     const deltaTime = (now - gameState.lastUpdate) / 1000;
     gameState.lastUpdate = now;
+    
+    // Update animations or visual effects here
 }
 
 // Calculate Passive Income
@@ -609,7 +667,7 @@ function calculateIncome() {
     let totalPopulation = 0;
     
     gameState.buildings.forEach(building => {
-        totalIncome += building.income;
+        totalIncome += building.income * building.level;
         totalPopulation += building.population;
     });
     
@@ -653,71 +711,74 @@ function buyLand() {
     if (gameState.money >= cost) {
         gameState.money -= cost;
         
-        // Find next available plot
-        let plotPlaced = false;
+        // Find next available plot to purchase
+        let plotFound = false;
         for (let i = 0; i < gameState.totalLand; i++) {
             const plot = document.querySelector(`.land-plot[data-index="${i}"]`);
             if (plot && !plot.classList.contains('purchased') && !plot.classList.contains('occupied')) {
-                // Mark this plot as purchased
                 plot.classList.add('purchased');
-                plotPlaced = true;
+                plotFound = true;
                 break;
             }
         }
         
-        // If all current plots are purchased, add more land
-        if (!plotPlaced) {
-            gameState.totalLand += 4;
-            renderLandGrid();
+        if (!plotFound) {
+            showNotification('All available plots are already purchased!', 'info');
+            return;
         }
         
         // Increase land cost for next purchase
         gameState.landCost = Math.floor(gameState.landCost * 1.5);
         
+        renderLandGrid();
         updateDisplay();
         showNotification('Purchased land plot! Drag buildings to green plots.', 'success');
     } else {
-        showNotification('Not enough money to buy land!', 'error');
+        showNotification(`Not enough money to buy land! Need $${cost}`, 'error');
     }
 }
 
 // Render Land Grid
 function renderLandGrid() {
+    if (!elements.landGrid) return;
+    
     elements.landGrid.innerHTML = '';
     
-    // Create 8x8 grid (64 total possible plots)
-    for (let i = 0; i < 64; i++) {
+    // Calculate grid size (square grid)
+    const gridSize = Math.ceil(Math.sqrt(gameState.totalLand));
+    elements.landGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    elements.landGrid.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+    
+    for (let i = 0; i < gameState.totalLand; i++) {
         const plot = document.createElement('div');
         plot.className = 'land-plot';
         plot.dataset.index = i;
         
-        // Check if plot is available (within totalLand)
-        if (i < gameState.totalLand) {
-            // Check if plot has a building
-            const building = gameState.buildings.find(b => b.plotIndex === i);
+        // Find building on this plot
+        const building = gameState.buildings.find(b => b.plotIndex === i);
+        
+        if (building) {
+            plot.classList.add('occupied');
+            plot.style.color = building.color;
             
-            if (building) {
-                plot.classList.add('occupied');
-                plot.style.color = building.color;
-                
-                plot.innerHTML = `
-                    <div class="plot-building">
-                        <div class="building-visual" style="background: ${building.color}"></div>
-                        <div class="building-label">${building.icon}</div>
-                    </div>
-                `;
-                
-                plot.addEventListener('click', () => showBuildingModal(building));
-            } else {
-                // Mark purchased plots (first 4 plots are free)
-                if (i < 4) {
-                    plot.classList.add('purchased');
-                }
-                
-                plot.addEventListener('click', () => selectPlot(i));
-            }
+            plot.innerHTML = `
+                <div class="plot-building">
+                    <div class="building-visual" style="background: ${building.color}"></div>
+                    <div class="building-label">${building.icon}</div>
+                </div>
+            `;
+            
+            plot.addEventListener('click', () => showBuildingModal(building));
         } else {
-            plot.classList.add('locked');
+            // First 4 plots are free, mark as purchased
+            if (i < 4) {
+                plot.classList.add('purchased');
+                plot.innerHTML = '<div class="plot-plus">+</div>';
+            } else {
+                plot.innerHTML = '<div class="plot-plus" style="opacity:0.3;">+</div>';
+            }
+            
+            plot.addEventListener('click', () => handlePlotClick(i));
         }
         
         elements.landGrid.appendChild(plot);
@@ -726,16 +787,17 @@ function renderLandGrid() {
     updateLandDisplay();
 }
 
-// Select Plot (for buying)
-function selectPlot(plotIndex) {
+// Handle Plot Click
+function handlePlotClick(plotIndex) {
     const plot = document.querySelector(`.land-plot[data-index="${plotIndex}"]`);
     
-    if (plot.classList.contains('purchased')) {
-        showNotification('This plot is already purchased!', 'info');
-    } else if (plot.classList.contains('locked')) {
-        showNotification('This plot is not available yet!', 'error');
+    if (plot.classList.contains('occupied')) {
+        // Already handled by building click
+        return;
+    } else if (plot.classList.contains('purchased')) {
+        showNotification('Empty plot - drag a building here!', 'info');
     } else {
-        // Show buying option
+        // Offer to buy the plot
         if (confirm(`Buy this land plot for $${gameState.landCost}?`)) {
             buyLand();
         }
@@ -744,6 +806,8 @@ function selectPlot(plotIndex) {
 
 // Render Buildings Shop
 function renderBuildingsShop(filter = 'all') {
+    if (!elements.buildingsContainer) return;
+    
     elements.buildingsContainer.innerHTML = '';
     
     Object.values(gameState.buildingTemplates).forEach(template => {
@@ -754,9 +818,11 @@ function renderBuildingsShop(filter = 'all') {
         
         const canAfford = gameState.money >= template.cost;
         const hasSpace = gameState.usedLand + template.space <= gameState.totalLand;
+        const purchasedPlots = document.querySelectorAll('.land-plot.purchased:not(.occupied)').length;
+        const hasAvailablePlots = purchasedPlots > 0;
         
         const item = document.createElement('div');
-        item.className = `building-item ${canAfford && hasSpace ? '' : 'disabled'}`;
+        item.className = `building-item ${canAfford && hasSpace && hasAvailablePlots ? '' : 'disabled'}`;
         item.dataset.buildingId = template.id;
         
         item.innerHTML = `
@@ -776,18 +842,29 @@ function renderBuildingsShop(filter = 'all') {
                 </div>
                 <div class="building-cost">$${template.cost}</div>
             </div>
-            <div class="drag-handle">
-                <i class="fas fa-arrows-alt"></i>
-            </div>
         `;
         
-        if (canAfford && hasSpace) {
+        if (canAfford && hasSpace && hasAvailablePlots) {
             // Add drag event listeners
-            item.addEventListener('mousedown', (e) => startDraggingBuilding(template.id, e));
-            item.addEventListener('touchstart', (e) => {
+            item.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 startDraggingBuilding(template.id, e);
+            });
+            
+            item.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    e.preventDefault();
+                    startDraggingBuilding(template.id, e);
+                }
             }, { passive: false });
+        } else {
+            if (!hasAvailablePlots) {
+                item.title = "No available plots! Buy more land.";
+            } else if (!canAfford) {
+                item.title = `Need $${template.cost - gameState.money} more`;
+            } else if (!hasSpace) {
+                item.title = "Not enough land space!";
+            }
         }
         
         elements.buildingsContainer.appendChild(item);
@@ -796,6 +873,8 @@ function renderBuildingsShop(filter = 'all') {
 
 // Render Upgrades
 function renderUpgrades() {
+    if (!elements.upgradesContainer) return;
+    
     elements.upgradesContainer.innerHTML = '';
     
     Object.values(gameState.upgrades).forEach(upgrade => {
@@ -813,12 +892,16 @@ function renderUpgrades() {
                     <div class="building-name">${upgrade.name}</div>
                     <div class="building-stats">${upgrade.description}</div>
                 </div>
-                <div class="building-cost">${upgrade.purchased ? '✓' : `$${upgrade.cost}`}</div>
+                <div class="building-cost">${upgrade.purchased ? '✓ Purchased' : `$${upgrade.cost}`}</div>
             </div>
         `;
         
         if (canAfford) {
             item.addEventListener('click', () => buyUpgrade(upgrade.id));
+        } else if (upgrade.purchased) {
+            item.title = "Already purchased";
+        } else {
+            item.title = `Need $${upgrade.cost - gameState.money} more`;
         }
         
         elements.upgradesContainer.appendChild(item);
@@ -841,6 +924,9 @@ function buyUpgrade(upgradeId) {
             case 'landDiscount':
                 gameState.landCost = Math.floor(gameState.landCost * upgrade.value);
                 break;
+            case 'autoClick':
+                // Will be handled by autoClick function
+                break;
         }
         
         renderUpgrades();
@@ -860,17 +946,17 @@ function updateDisplay() {
     };
     
     // Update stats
-    elements.money.textContent = formatMoney(gameState.money);
-    elements.perSecond.textContent = formatMoney(gameState.perSecond);
-    elements.perClick.textContent = formatMoney(gameState.perClick);
-    elements.landUsed.textContent = gameState.usedLand;
-    elements.landTotal.textContent = gameState.totalLand;
-    elements.landCost.textContent = gameState.landCost;
-    elements.buildingCount.textContent = gameState.buildings.length;
-    elements.population.textContent = gameState.population;
-    elements.totalClicks.textContent = gameState.totalClicks;
-    elements.clickRevenue.textContent = formatMoney(gameState.clickRevenue);
-    elements.clickValueDisplay.textContent = gameState.perClick;
+    if (elements.money) elements.money.textContent = formatMoney(gameState.money);
+    if (elements.perSecond) elements.perSecond.textContent = formatMoney(gameState.perSecond);
+    if (elements.perClick) elements.perClick.textContent = formatMoney(gameState.perClick);
+    if (elements.landUsed) elements.landUsed.textContent = gameState.usedLand;
+    if (elements.landTotal) elements.landTotal.textContent = gameState.totalLand;
+    if (elements.landCost) elements.landCost.textContent = gameState.landCost;
+    if (elements.buildingCount) elements.buildingCount.textContent = gameState.buildings.length;
+    if (elements.population) elements.population.textContent = gameState.population;
+    if (elements.totalClicks) elements.totalClicks.textContent = gameState.totalClicks;
+    if (elements.clickRevenue) elements.clickRevenue.textContent = formatMoney(gameState.clickRevenue);
+    if (elements.clickValueDisplay) elements.clickValueDisplay.textContent = gameState.perClick;
     
     // Update auto-clicker status
     const autoClickerStatus = document.getElementById('auto-click-status');
@@ -879,31 +965,35 @@ function updateDisplay() {
             ? '<i class="fas fa-robot"></i> Auto: ON'
             : '<i class="fas fa-robot"></i> Auto: OFF';
     }
+    
+    // Update buy land button
+    if (elements.buyLandBtn) {
+        elements.buyLandBtn.disabled = gameState.money < gameState.landCost;
+        elements.buyLandBtn.innerHTML = `<i class="fas fa-expand"></i> Buy Land Plot ($${gameState.landCost})`;
+    }
 }
 
 // Update Land Display
 function updateLandDisplay() {
     const purchasedPlots = document.querySelectorAll('.land-plot.purchased').length;
-    const percent = Math.min(100, (gameState.usedLand / purchasedPlots) * 100) || 0;
-    elements.landFill.style.width = `${percent}%`;
-    elements.landPercent.textContent = purchasedPlots > 0 ? `${Math.round(percent)}%` : '0%';
+    const percent = purchasedPlots > 0 ? Math.min(100, (gameState.usedLand / purchasedPlots) * 100) : 0;
+    
+    if (elements.landFill) elements.landFill.style.width = `${percent}%`;
+    if (elements.landPercent) elements.landPercent.textContent = `${Math.round(percent)}%`;
 }
 
 // Update Map Display
 function updateMapDisplay() {
-    const currentMap = gameState.maps[gameState.currentMap];
-    
-    elements.currentMap.textContent = currentMap.name;
-    elements.mapNameDisplay.textContent = `${currentMap.name} District`;
-    elements.mapDescription.textContent = currentMap.description;
-    
-    elements.nextMapPrice.textContent = 'Coming Soon';
-    elements.mapProgress.style.width = '100%';
+    if (elements.currentMap) elements.currentMap.textContent = 'Downtown';
+    if (elements.mapNameDisplay) elements.mapNameDisplay.textContent = 'Downtown District';
+    if (elements.mapDescription) elements.mapDescription.textContent = 'A bustling urban center perfect for starting your empire';
 }
 
 // Show Building Modal
 function showBuildingModal(building) {
     const template = gameState.buildingTemplates[building.id.split('_')[0]];
+    
+    if (!elements.modalContent) return;
     
     elements.modalContent.innerHTML = `
         <div class="modal-building-info">
@@ -916,7 +1006,7 @@ function showBuildingModal(building) {
             <div class="building-stats-grid">
                 <div class="stat">
                     <span>Income</span>
-                    <strong>$${building.income}/s</strong>
+                    <strong>$${building.income * building.level}/s</strong>
                 </div>
                 <div class="stat">
                     <span>Space</span>
@@ -945,23 +1035,29 @@ function showBuildingModal(building) {
         </div>
     `;
     
-    elements.buildingModal.style.display = 'flex';
+    if (elements.buildingModal) {
+        elements.buildingModal.style.display = 'flex';
+    }
 }
 
 // Upgrade Building
 function upgradeBuilding(buildingId) {
     const building = gameState.buildings.find(b => b.id === buildingId);
+    if (!building) return;
+    
     const upgradeCost = Math.floor(building.cost * 1.5);
     
     if (gameState.money >= upgradeCost) {
         gameState.money -= upgradeCost;
         building.level++;
-        building.income = Math.floor(building.income * 1.5);
+        building.income = Math.floor(building.income * 1.2); // 20% increase per level
         building.cost = upgradeCost;
         
         updateDisplay();
         renderLandGrid();
-        elements.buildingModal.style.display = 'none';
+        if (elements.buildingModal) {
+            elements.buildingModal.style.display = 'none';
+        }
         showNotification(`${building.name} upgraded to level ${building.level}!`, 'success');
     } else {
         showNotification(`Need $${upgradeCost} to upgrade!`, 'error');
@@ -971,6 +1067,8 @@ function upgradeBuilding(buildingId) {
 // Sell Building
 function sellBuilding(buildingId) {
     const building = gameState.buildings.find(b => b.id === buildingId);
+    if (!building) return;
+    
     const sellPrice = Math.floor(building.cost * 0.7);
     
     if (confirm(`Sell ${building.name} for $${sellPrice}?`)) {
@@ -981,7 +1079,9 @@ function sellBuilding(buildingId) {
         renderLandGrid();
         renderBuildingsShop();
         updateDisplay();
-        elements.buildingModal.style.display = 'none';
+        if (elements.buildingModal) {
+            elements.buildingModal.style.display = 'none';
+        }
         
         showNotification(`Sold ${building.name} for $${sellPrice}!`, 'success');
     }
@@ -990,24 +1090,24 @@ function sellBuilding(buildingId) {
 // Show Help
 function showHelp() {
     alert(`
-=== MINI CITY TYCOON - DRAG & DROP GUIDE ===
+=== MINI CITY TYCOON - HOW TO PLAY ===
 
-HOW TO PLAY:
-1. Click the main button to earn money
-2. Drag buildings from the SHOP to the MAP
-3. Green plots are purchased land - drag buildings here
-4. Click on buildings to manage/upgrade/sell them
-5. Buy more land plots when you run out of space
-6. Purchase upgrades for permanent bonuses
+1. CLICK the main button to earn money
+2. BUY BUILDINGS from the shop
+3. DRAG BUILDINGS to green plots on the map
+4. BUILDINGS generate passive income every second
+5. UPGRADE buildings by clicking on them
+6. BUY MORE LAND when you run out of space
+7. PURCHASE upgrades for permanent bonuses
 
-DRAG & DROP:
-- Click and hold a building in the shop
-- Drag it to a green plot on the map
-- Release to place the building
-- Red highlight means invalid location
-- Green highlight means valid location
+CONTROLS:
+- Drag buildings from shop to map
+- Click buildings to manage/upgrade/sell
+- Click empty plots to buy land
+- Green plots = available for building
+- Red plots = locked/not purchased
 
-TIP: Start with Lemonade Stands on purchased plots!
+TIP: Start with Lemonade Stands on green plots!
     `);
 }
 
@@ -1025,7 +1125,7 @@ Play Time: ${formatTime(gameState.playTime)}
 Buildings Owned: ${gameState.buildings.length}
 Total Population: ${gameState.population}
 Land Usage: ${gameState.usedLand}/${purchasedPlots} plots
-Empty Plots Available: ${emptyPlots}
+Empty Plots: ${emptyPlots}
 
 Income Breakdown:
 - Click Income: $${gameState.perClick}/click
@@ -1038,13 +1138,30 @@ Upgrades Purchased: ${Object.values(gameState.upgrades).filter(u => u.purchased)
 
 // Save Game
 function saveGame() {
-    const saveData = {
-        ...gameState,
-        lastSave: Date.now()
-    };
-    
-    localStorage.setItem('miniCityTycoonSave', JSON.stringify(saveData));
-    showNotification('Game saved successfully!', 'success');
+    try {
+        const saveData = {
+            money: gameState.money,
+            perClick: gameState.perClick,
+            perSecond: gameState.perSecond,
+            totalLand: gameState.totalLand,
+            usedLand: gameState.usedLand,
+            landCost: gameState.landCost,
+            totalClicks: gameState.totalClicks,
+            clickRevenue: gameState.clickRevenue,
+            playTime: gameState.playTime,
+            population: gameState.population,
+            currentMap: gameState.currentMap,
+            buildings: gameState.buildings,
+            upgrades: gameState.upgrades,
+            lastSave: Date.now()
+        };
+        
+        localStorage.setItem('miniCityTycoonSave', JSON.stringify(saveData));
+        showNotification('Game saved successfully!', 'success');
+    } catch (error) {
+        console.error('Error saving game:', error);
+        showNotification('Error saving game', 'error');
+    }
 }
 
 // Auto Save
@@ -1054,28 +1171,42 @@ function autoSave() {
 
 // Load Game
 function loadGame() {
-    const saved = localStorage.getItem('miniCityTycoonSave');
-    
-    if (saved) {
-        try {
+    try {
+        const saved = localStorage.getItem('miniCityTycoonSave');
+        
+        if (saved) {
             const savedState = JSON.parse(saved);
             
-            // Merge saved state
-            Object.keys(savedState).forEach(key => {
-                if (gameState[key] !== undefined) {
-                    if (typeof gameState[key] === 'object' && !Array.isArray(gameState[key])) {
-                        Object.assign(gameState[key], savedState[key]);
-                    } else {
-                        gameState[key] = savedState[key];
-                    }
+            // Load basic stats
+            const basicStats = ['money', 'perClick', 'perSecond', 'totalLand', 'usedLand', 
+                               'landCost', 'totalClicks', 'clickRevenue', 'playTime', 
+                               'population', 'currentMap'];
+            
+            basicStats.forEach(stat => {
+                if (savedState[stat] !== undefined) {
+                    gameState[stat] = savedState[stat];
                 }
             });
             
+            // Load buildings
+            if (Array.isArray(savedState.buildings)) {
+                gameState.buildings = savedState.buildings;
+            }
+            
+            // Load upgrades
+            if (savedState.upgrades) {
+                Object.keys(savedState.upgrades).forEach(key => {
+                    if (gameState.upgrades[key]) {
+                        gameState.upgrades[key].purchased = savedState.upgrades[key].purchased;
+                    }
+                });
+            }
+            
             showNotification('Game loaded successfully!', 'success');
-        } catch (error) {
-            console.error('Error loading game:', error);
-            showNotification('Error loading saved game', 'error');
         }
+    } catch (error) {
+        console.error('Error loading game:', error);
+        showNotification('Error loading saved game', 'error');
     }
 }
 
@@ -1085,30 +1216,19 @@ function resetGame() {
         localStorage.removeItem('miniCityTycoonSave');
         
         // Reset to initial state
-        Object.assign(gameState, {
-            money: 1000,
-            perClick: 1,
-            perSecond: 0,
-            totalLand: 16,
-            usedLand: 0,
-            landCost: 500,
-            totalClicks: 0,
-            clickRevenue: 0,
-            playTime: 0,
-            population: 0,
-            currentMap: 'downtown',
-            buildings: [],
-            draggingBuilding: null,
-            dragStartPos: { x: 0, y: 0 },
-            dragOffset: { x: 0, y: 0 },
-            lastSave: Date.now(),
-            lastUpdate: Date.now()
-        });
-        
-        // Reset maps
-        Object.keys(gameState.maps).forEach(key => {
-            gameState.maps[key].unlocked = key === 'downtown';
-        });
+        gameState.money = 1000;
+        gameState.perClick = 1;
+        gameState.perSecond = 0;
+        gameState.totalLand = 16;
+        gameState.usedLand = 0;
+        gameState.landCost = 500;
+        gameState.totalClicks = 0;
+        gameState.clickRevenue = 0;
+        gameState.playTime = 0;
+        gameState.population = 0;
+        gameState.currentMap = 'downtown';
+        gameState.buildings = [];
+        gameState.draggingBuilding = null;
         
         // Reset upgrades
         Object.values(gameState.upgrades).forEach(upgrade => {
@@ -1128,7 +1248,9 @@ function resetGame() {
 // Update Play Time
 function updatePlayTime() {
     gameState.playTime++;
-    elements.playTime.textContent = formatTime(gameState.playTime);
+    if (elements.playTime) {
+        elements.playTime.textContent = formatTime(gameState.playTime);
+    }
 }
 
 // Format Time
@@ -1143,6 +1265,8 @@ function formatTime(seconds) {
 // Animate Click
 function animateClick() {
     const button = elements.clickButton;
+    if (!button) return;
+    
     button.style.transform = 'scale(0.95)';
     
     setTimeout(() => {
@@ -1152,7 +1276,7 @@ function animateClick() {
     // Create floating text
     const floatingText = document.createElement('div');
     floatingText.textContent = `+$${gameState.perClick}`;
-    floatingText.style.position = 'absolute';
+    floatingText.style.position = 'fixed';
     floatingText.style.color = '#FFD700';
     floatingText.style.fontWeight = 'bold';
     floatingText.style.fontSize = '1.2rem';
@@ -1163,32 +1287,44 @@ function animateClick() {
     const rect = button.getBoundingClientRect();
     floatingText.style.left = `${rect.left + rect.width / 2}px`;
     floatingText.style.top = `${rect.top}px`;
+    floatingText.style.transform = 'translateX(-50%)';
     
     document.body.appendChild(floatingText);
     
     setTimeout(() => {
-        document.body.removeChild(floatingText);
+        if (floatingText.parentNode) {
+            document.body.removeChild(floatingText);
+        }
     }, 1000);
 }
 
 // Show Notification
 function showNotification(message, type = 'success') {
+    if (!elements.notification) return;
+    
     const notification = elements.notification;
     const content = notification.querySelector('.notification-content');
     
-    content.querySelector('.notification-text').textContent = message;
+    if (!content) return;
+    
+    const textElement = content.querySelector('.notification-text');
+    const iconElement = content.querySelector('.notification-icon');
+    
+    if (textElement) textElement.textContent = message;
     
     // Set icon based on type
-    const icon = content.querySelector('.notification-icon');
-    if (type === 'success') {
-        icon.style.color = '#4ade80';
-        icon.textContent = '✓';
-    } else if (type === 'error') {
-        icon.style.color = '#ef4444';
-        icon.textContent = '⚠';
-    } else {
-        icon.style.color = '#3b82f6';
-        icon.textContent = 'ℹ';
+    if (iconElement) {
+        iconElement.className = 'notification-icon';
+        if (type === 'success') {
+            iconElement.style.color = '#4ade80';
+            iconElement.textContent = '✓';
+        } else if (type === 'error') {
+            iconElement.style.color = '#ef4444';
+            iconElement.textContent = '⚠';
+        } else {
+            iconElement.style.color = '#3b82f6';
+            iconElement.textContent = 'ℹ';
+        }
     }
     
     notification.className = `notification ${type} show`;
@@ -1200,3 +1336,22 @@ function showNotification(message, type = 'success') {
 
 // Initialize game when page loads
 window.addEventListener('DOMContentLoaded', init);
+
+// Add CSS for floatUp animation
+if (!document.querySelector('#floatUpStyle')) {
+    const style = document.createElement('style');
+    style.id = 'floatUpStyle';
+    style.textContent = `
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50px);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
