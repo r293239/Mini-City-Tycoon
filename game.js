@@ -22,44 +22,16 @@ const gameState = {
             incomeMultiplier: 1.0,
             landMultiplier: 1.0,
             unlockCost: 0
-        },
-        suburbs: { 
-            unlocked: false, 
-            name: 'Suburbs', 
-            description: 'Quiet residential area with space for expansion',
-            incomeMultiplier: 1.2,
-            landMultiplier: 1.5,
-            unlockCost: 10000
-        },
-        industrial: { 
-            unlocked: false, 
-            name: 'Industrial Zone', 
-            description: 'Perfect for factories and manufacturing',
-            incomeMultiplier: 1.5,
-            landMultiplier: 2.0,
-            unlockCost: 50000
-        },
-        beachfront: { 
-            unlocked: false, 
-            name: 'Beachfront', 
-            description: 'Premium location for tourism and luxury',
-            incomeMultiplier: 2.0,
-            landMultiplier: 1.0,
-            unlockCost: 200000
-        },
-        mountain: { 
-            unlocked: false, 
-            name: 'Mountain Resort', 
-            description: 'Exclusive mountain resort with premium income',
-            incomeMultiplier: 3.0,
-            landMultiplier: 0.8,
-            unlockCost: 1000000
         }
     },
     
     // Buildings data
     buildings: [],
-    buildingToPlace: null,
+    
+    // Currently dragging building
+    draggingBuilding: null,
+    dragStartPos: { x: 0, y: 0 },
+    dragOffset: { x: 0, y: 0 },
     
     // Building templates
     buildingTemplates: {
@@ -169,45 +141,6 @@ const gameState = {
             color: '#BA68C8',
             icon: '🏬',
             description: 'Large retail complex with multiple stores'
-        },
-        skyscraper: {
-            id: 'skyscraper',
-            name: 'Skyscraper',
-            cost: 25000,
-            income: 300,
-            space: 4,
-            population: 100,
-            type: 'residential',
-            category: 'advanced',
-            color: '#4A6572',
-            icon: '🏙️',
-            description: 'Massive residential and commercial tower'
-        },
-        stadium: {
-            id: 'stadium',
-            name: 'Stadium',
-            cost: 50000,
-            income: 500,
-            space: 6,
-            population: 200,
-            type: 'entertainment',
-            category: 'advanced',
-            color: '#FFB74D',
-            icon: '🏟️',
-            description: 'Sports and entertainment venue'
-        },
-        airport: {
-            id: 'airport',
-            name: 'Airport',
-            cost: 100000,
-            income: 1000,
-            space: 8,
-            population: 500,
-            type: 'transport',
-            category: 'advanced',
-            color: '#FFF176',
-            icon: '✈️',
-            description: 'Major transportation hub'
         }
     },
     
@@ -242,23 +175,13 @@ const gameState = {
             effect: 'autoClick',
             value: true,
             icon: '🤖'
-        },
-        buildingBoost: {
-            id: 'buildingBoost',
-            name: 'Building Boost',
-            description: 'All buildings produce 25% more',
-            cost: 10000,
-            purchased: false,
-            effect: 'buildingMultiplier',
-            value: 1.25,
-            icon: '📈'
         }
     },
     
     // Game settings
     lastSave: Date.now(),
     lastUpdate: Date.now(),
-    autoSaveInterval: 30000 // 30 seconds
+    autoSaveInterval: 30000
 };
 
 // DOM Elements
@@ -286,9 +209,14 @@ const elements = {
     mapProgress: document.getElementById('map-progress'),
     
     // Containers
-    cityGrid: document.getElementById('city-grid'),
+    landGrid: document.getElementById('land-grid'),
     buildingsContainer: document.getElementById('buildings-container'),
     upgradesContainer: document.getElementById('upgrades-container'),
+    
+    // Drag & Drop
+    dragPreview: document.getElementById('drag-preview'),
+    dragGhost: document.getElementById('drag-ghost'),
+    dragInstruction: document.getElementById('drag-instruction'),
     
     // Buttons
     clickButton: document.getElementById('click-button'),
@@ -296,18 +224,15 @@ const elements = {
     saveBtn: document.getElementById('save-btn'),
     loadBtn: document.getElementById('load-btn'),
     resetBtn: document.getElementById('reset-btn'),
-    prestigeBtn: document.getElementById('prestige-btn'),
-    clearBtn: document.getElementById('clear-btn'),
+    clearDragBtn: document.getElementById('clear-drag-btn'),
     helpBtn: document.getElementById('help-btn'),
     statsBtn: document.getElementById('stats-btn'),
     
     // Modals
     buildingModal: document.getElementById('building-modal'),
-    mapModal: document.getElementById('map-unlock-modal'),
     modalContent: document.getElementById('modal-content'),
     
     // Time
-    lastSave: document.getElementById('last-save'),
     playTime: document.getElementById('play-time'),
     
     // Notification
@@ -323,7 +248,8 @@ function init() {
     
     // Setup game systems
     setupEventListeners();
-    renderCityGrid();
+    setupDragAndDrop();
+    renderLandGrid();
     renderBuildingsShop();
     renderUpgrades();
     updateMapDisplay();
@@ -333,7 +259,7 @@ function init() {
     startGameLoops();
     
     // Show welcome message
-    showNotification('Welcome to Mini City Tycoon! Start building your city.', 'success');
+    showNotification('Welcome to Mini City Tycoon! Drag buildings from the shop to the map.', 'success');
     
     console.log('Game initialized successfully!');
 }
@@ -350,8 +276,7 @@ function setupEventListeners() {
     elements.saveBtn.addEventListener('click', saveGame);
     elements.loadBtn.addEventListener('click', loadGame);
     elements.resetBtn.addEventListener('click', resetGame);
-    elements.prestigeBtn.addEventListener('click', prestige);
-    elements.clearBtn.addEventListener('click', clearSelection);
+    elements.clearDragBtn.addEventListener('click', clearDragging);
     elements.helpBtn.addEventListener('click', showHelp);
     elements.statsBtn.addEventListener('click', showStats);
     
@@ -371,15 +296,286 @@ function setupEventListeners() {
         });
     });
     
-    // Map switch button
-    document.getElementById('switch-map-btn')?.addEventListener('click', switchToNewMap);
-    
-    // Window close modal on outside click
+    // Close modals on outside click
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
             e.target.style.display = 'none';
         }
     });
+}
+
+// Setup Drag and Drop System
+function setupDragAndDrop() {
+    // Prevent default drag behaviors
+    document.addEventListener('dragstart', (e) => e.preventDefault());
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => e.preventDefault());
+    
+    // Mouse move for dragging
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    // Touch events for mobile
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleMouseUp);
+}
+
+// Handle Mouse Move for Dragging
+function handleMouseMove(e) {
+    if (!gameState.draggingBuilding) return;
+    
+    const mouseX = e.clientX || (e.touches && e.touches[0].clientX);
+    const mouseY = e.clientY || (e.touches && e.touches[0].clientY);
+    
+    if (!mouseX || !mouseY) return;
+    
+    // Update drag ghost position
+    updateDragGhost(mouseX, mouseY);
+    
+    // Update drag preview on map
+    updateDragPreview(mouseX, mouseY);
+}
+
+// Handle Mouse Up (Drop)
+function handleMouseUp(e) {
+    if (!gameState.draggingBuilding) return;
+    
+    const mouseX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+    const mouseY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+    
+    if (mouseX && mouseY) {
+        tryPlaceBuilding(mouseX, mouseY);
+    }
+    
+    // Clear dragging state
+    clearDragging();
+}
+
+// Handle Touch Move
+function handleTouchMove(e) {
+    if (!gameState.draggingBuilding) return;
+    e.preventDefault();
+    handleMouseMove(e);
+}
+
+// Start Dragging a Building
+function startDraggingBuilding(buildingId, e) {
+    const template = gameState.buildingTemplates[buildingId];
+    if (!template) return;
+    
+    // Check if we can afford it
+    if (gameState.money < template.cost) {
+        showNotification(`Not enough money! Need $${template.cost}`, 'error');
+        return;
+    }
+    
+    // Check if there's space
+    if (gameState.usedLand + template.space > gameState.totalLand) {
+        showNotification('Not enough land! Buy more land first.', 'error');
+        return;
+    }
+    
+    // Set dragging state
+    gameState.draggingBuilding = {
+        template: template,
+        buildingId: buildingId
+    };
+    
+    // Get start position
+    const rect = e.target.getBoundingClientRect();
+    gameState.dragStartPos = {
+        x: e.clientX || (e.touches && e.touches[0].clientX),
+        y: e.clientY || (e.touches && e.touches[0].clientY)
+    };
+    
+    gameState.dragOffset = {
+        x: gameState.dragStartPos.x - rect.left,
+        y: gameState.dragStartPos.y - rect.top
+    };
+    
+    // Update UI
+    e.target.classList.add('dragging');
+    showDragGhost(template);
+    showDragPreview();
+    
+    // Update instruction
+    elements.dragInstruction.textContent = 'Drag to an empty green plot';
+}
+
+// Update Drag Ghost
+function updateDragGhost(mouseX, mouseY) {
+    if (!gameState.draggingBuilding || !elements.dragGhost) return;
+    
+    elements.dragGhost.style.left = `${mouseX - gameState.dragOffset.x}px`;
+    elements.dragGhost.style.top = `${mouseY - gameState.dragOffset.y}px`;
+}
+
+// Show Drag Ghost
+function showDragGhost(template) {
+    if (!elements.dragGhost) return;
+    
+    elements.dragGhost.innerHTML = `
+        <div class="drag-ghost-content">
+            <div class="drag-ghost-icon" style="background: ${template.color}">
+                ${template.icon}
+            </div>
+            <div class="drag-ghost-name">${template.name}</div>
+            <div class="drag-ghost-cost">$${template.cost}</div>
+        </div>
+    `;
+    
+    elements.dragGhost.classList.add('show');
+}
+
+// Hide Drag Ghost
+function hideDragGhost() {
+    if (!elements.dragGhost) return;
+    elements.dragGhost.classList.remove('show');
+}
+
+// Show Drag Preview
+function showDragPreview() {
+    if (!elements.dragPreview) return;
+    elements.dragPreview.classList.add('show');
+}
+
+// Hide Drag Preview
+function hideDragPreview() {
+    if (!elements.dragPreview) return;
+    elements.dragPreview.classList.remove('show');
+}
+
+// Update Drag Preview
+function updateDragPreview(mouseX, mouseY) {
+    if (!gameState.draggingBuilding || !elements.dragPreview) return;
+    
+    const mapRect = elements.landGrid.getBoundingClientRect();
+    const relativeX = mouseX - mapRect.left;
+    const relativeY = mouseY - mapRect.top;
+    
+    // Check if mouse is over the map
+    if (relativeX < 0 || relativeY < 0 || 
+        relativeX > mapRect.width || relativeY > mapRect.height) {
+        elements.dragPreview.style.display = 'none';
+        return;
+    }
+    
+    // Calculate which plot we're over
+    const plotSize = mapRect.width / 8; // 8x8 grid
+    const plotX = Math.floor(relativeX / plotSize);
+    const plotY = Math.floor(relativeY / plotSize);
+    
+    // Check if plot is valid
+    const plotIndex = plotY * 8 + plotX;
+    const isValid = isValidPlotForBuilding(plotIndex);
+    
+    // Update preview position and style
+    elements.dragPreview.style.display = 'block';
+    elements.dragPreview.style.left = `${plotX * plotSize}px`;
+    elements.dragPreview.style.top = `${plotY * plotSize}px`;
+    elements.dragPreview.style.width = `${plotSize}px`;
+    elements.dragPreview.style.height = `${plotSize}px`;
+    
+    if (isValid) {
+        elements.dragPreview.classList.remove('invalid');
+        elements.dragPreview.classList.add('valid');
+        elements.dragPreview.style.backgroundColor = 'rgba(16, 185, 129, 0.3)';
+    } else {
+        elements.dragPreview.classList.remove('valid');
+        elements.dragPreview.classList.add('invalid');
+        elements.dragPreview.style.backgroundColor = 'rgba(239, 68, 68, 0.3)';
+    }
+    
+    // Store current hover plot
+    gameState.hoverPlot = { x: plotX, y: plotY, index: plotIndex, valid: isValid };
+}
+
+// Check if Plot is Valid for Building
+function isValidPlotForBuilding(plotIndex) {
+    if (!gameState.draggingBuilding) return false;
+    
+    const template = gameState.draggingBuilding.template;
+    
+    // Check if plot exists
+    if (plotIndex >= gameState.totalLand) return false;
+    
+    // Check if plot is already occupied
+    const existingBuilding = gameState.buildings.find(b => b.plotIndex === plotIndex);
+    if (existingBuilding) return false;
+    
+    // Check if plot is purchased
+    const plot = document.querySelector(`.land-plot[data-index="${plotIndex}"]`);
+    if (!plot || !plot.classList.contains('purchased')) return false;
+    
+    return true;
+}
+
+// Try to Place Building
+function tryPlaceBuilding(mouseX, mouseY) {
+    if (!gameState.draggingBuilding || !gameState.hoverPlot) return;
+    
+    if (gameState.hoverPlot.valid) {
+        placeBuilding(gameState.draggingBuilding.buildingId, gameState.hoverPlot.index);
+    } else {
+        showNotification('Cannot place building here! Make sure the plot is purchased and empty.', 'error');
+    }
+}
+
+// Place Building on Plot
+function placeBuilding(buildingId, plotIndex) {
+    const template = gameState.buildingTemplates[buildingId];
+    
+    // Final validation
+    if (gameState.money < template.cost) {
+        showNotification(`Not enough money! Need $${template.cost}`, 'error');
+        return;
+    }
+    
+    if (gameState.usedLand + template.space > gameState.totalLand) {
+        showNotification('Not enough land! Buy more land first.', 'error');
+        return;
+    }
+    
+    // Create building
+    const building = {
+        ...JSON.parse(JSON.stringify(template)),
+        plotIndex: plotIndex,
+        id: `${template.id}_${Date.now()}`,
+        level: 1,
+        placedAt: Date.now()
+    };
+    
+    // Deduct cost
+    gameState.money -= template.cost;
+    gameState.usedLand += template.space;
+    
+    // Add to buildings
+    gameState.buildings.push(building);
+    
+    // Update UI
+    renderLandGrid();
+    renderBuildingsShop();
+    updateDisplay();
+    
+    showNotification(`Placed ${template.name}!`, 'success');
+}
+
+// Clear Dragging State
+function clearDragging() {
+    gameState.draggingBuilding = null;
+    gameState.hoverPlot = null;
+    
+    // Remove dragging class from all building items
+    document.querySelectorAll('.building-item').forEach(item => {
+        item.classList.remove('dragging');
+    });
+    
+    // Hide drag elements
+    hideDragGhost();
+    hideDragPreview();
+    
+    // Reset instruction
+    elements.dragInstruction.textContent = 'Drag buildings from shop to map';
 }
 
 // Start Game Loops
@@ -405,8 +601,6 @@ function gameLoop() {
     const now = Date.now();
     const deltaTime = (now - gameState.lastUpdate) / 1000;
     gameState.lastUpdate = now;
-    
-    // Update time-based calculations here if needed
 }
 
 // Calculate Passive Income
@@ -415,18 +609,7 @@ function calculateIncome() {
     let totalPopulation = 0;
     
     gameState.buildings.forEach(building => {
-        let buildingIncome = building.income;
-        
-        // Apply map multiplier
-        const mapMultiplier = gameState.maps[gameState.currentMap].incomeMultiplier;
-        buildingIncome *= mapMultiplier;
-        
-        // Apply building boost upgrade
-        if (gameState.upgrades.buildingBoost.purchased) {
-            buildingIncome *= gameState.upgrades.buildingBoost.value;
-        }
-        
-        totalIncome += buildingIncome;
+        totalIncome += building.income;
         totalPopulation += building.population;
     });
     
@@ -453,9 +636,6 @@ function handleClick() {
     // Animation
     animateClick();
     
-    // Check for map unlocks
-    checkMapUnlocks();
-    
     updateDisplay();
 }
 
@@ -472,33 +652,48 @@ function buyLand() {
     
     if (gameState.money >= cost) {
         gameState.money -= cost;
-        gameState.totalLand += 4; // Add a 2x2 plot
+        
+        // Find next available plot
+        let plotPlaced = false;
+        for (let i = 0; i < gameState.totalLand; i++) {
+            const plot = document.querySelector(`.land-plot[data-index="${i}"]`);
+            if (plot && !plot.classList.contains('purchased') && !plot.classList.contains('occupied')) {
+                // Mark this plot as purchased
+                plot.classList.add('purchased');
+                plotPlaced = true;
+                break;
+            }
+        }
+        
+        // If all current plots are purchased, add more land
+        if (!plotPlaced) {
+            gameState.totalLand += 4;
+            renderLandGrid();
+        }
         
         // Increase land cost for next purchase
         gameState.landCost = Math.floor(gameState.landCost * 1.5);
         
-        renderCityGrid();
         updateDisplay();
-        showNotification('Purchased new land plot!', 'success');
+        showNotification('Purchased land plot! Drag buildings to green plots.', 'success');
     } else {
         showNotification('Not enough money to buy land!', 'error');
     }
 }
 
-// Render City Grid
-function renderCityGrid() {
-    elements.cityGrid.innerHTML = '';
+// Render Land Grid
+function renderLandGrid() {
+    elements.landGrid.innerHTML = '';
     
-    // Calculate grid size (always square)
-    const gridSize = Math.ceil(Math.sqrt(gameState.totalLand));
-    
-    for (let i = 0; i < gridSize * gridSize; i++) {
+    // Create 8x8 grid (64 total possible plots)
+    for (let i = 0; i < 64; i++) {
         const plot = document.createElement('div');
         plot.className = 'land-plot';
         plot.dataset.index = i;
         
+        // Check if plot is available (within totalLand)
         if (i < gameState.totalLand) {
-            // Find building on this plot
+            // Check if plot has a building
             const building = gameState.buildings.find(b => b.plotIndex === i);
             
             if (building) {
@@ -506,76 +701,44 @@ function renderCityGrid() {
                 plot.style.color = building.color;
                 
                 plot.innerHTML = `
-                    <div class="building-preview">
-                        <div class="building-shape" style="height: ${60 + (building.space * 10)}%; background: ${building.color}"></div>
-                        <div class="building-name">${building.icon}</div>
+                    <div class="plot-building">
+                        <div class="building-visual" style="background: ${building.color}"></div>
+                        <div class="building-label">${building.icon}</div>
                     </div>
                 `;
                 
                 plot.addEventListener('click', () => showBuildingModal(building));
             } else {
-                plot.classList.add('empty');
-                plot.innerHTML = `<div class="plot-plus">+</div>`;
+                // Mark purchased plots (first 4 plots are free)
+                if (i < 4) {
+                    plot.classList.add('purchased');
+                }
                 
-                plot.addEventListener('click', () => selectPlotForBuilding(i));
+                plot.addEventListener('click', () => selectPlot(i));
             }
         } else {
             plot.classList.add('locked');
-            plot.innerHTML = `<div class="plot-plus">🔒</div>`;
         }
         
-        elements.cityGrid.appendChild(plot);
+        elements.landGrid.appendChild(plot);
     }
-    
-    // Update grid columns
-    elements.cityGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
     
     updateLandDisplay();
 }
 
-// Select Plot for Building
-function selectPlotForBuilding(plotIndex) {
-    if (gameState.buildingToPlace) {
-        const template = gameState.buildingTemplates[gameState.buildingToPlace];
-        
-        // Check if we can afford it
-        if (gameState.money < template.cost) {
-            showNotification(`Not enough money! Need $${template.cost}`, 'error');
-            return;
-        }
-        
-        // Check if there's enough space
-        if (gameState.usedLand + template.space > gameState.totalLand) {
-            showNotification('Not enough land! Buy more land first.', 'error');
-            return;
-        }
-        
-        // Create building
-        const building = {
-            ...JSON.parse(JSON.stringify(template)),
-            plotIndex: plotIndex,
-            id: `${template.id}_${Date.now()}`,
-            level: 1
-        };
-        
-        // Deduct cost
-        gameState.money -= template.cost;
-        gameState.usedLand += template.space;
-        
-        // Add to buildings
-        gameState.buildings.push(building);
-        
-        // Clear selection
-        gameState.buildingToPlace = null;
-        
-        // Update UI
-        renderCityGrid();
-        renderBuildingsShop();
-        updateDisplay();
-        
-        showNotification(`Built ${template.name}!`, 'success');
+// Select Plot (for buying)
+function selectPlot(plotIndex) {
+    const plot = document.querySelector(`.land-plot[data-index="${plotIndex}"]`);
+    
+    if (plot.classList.contains('purchased')) {
+        showNotification('This plot is already purchased!', 'info');
+    } else if (plot.classList.contains('locked')) {
+        showNotification('This plot is not available yet!', 'error');
     } else {
-        showNotification('Select a building from the shop first!', 'error');
+        // Show buying option
+        if (confirm(`Buy this land plot for $${gameState.landCost}?`)) {
+            buyLand();
+        }
     }
 }
 
@@ -594,6 +757,7 @@ function renderBuildingsShop(filter = 'all') {
         
         const item = document.createElement('div');
         item.className = `building-item ${canAfford && hasSpace ? '' : 'disabled'}`;
+        item.dataset.buildingId = template.id;
         
         item.innerHTML = `
             <div class="building-header">
@@ -612,13 +776,18 @@ function renderBuildingsShop(filter = 'all') {
                 </div>
                 <div class="building-cost">$${template.cost}</div>
             </div>
+            <div class="drag-handle">
+                <i class="fas fa-arrows-alt"></i>
+            </div>
         `;
         
         if (canAfford && hasSpace) {
-            item.addEventListener('click', () => {
-                gameState.buildingToPlace = template.id;
-                showNotification(`Selected ${template.name}. Click on an empty plot to build!`, 'success');
-            });
+            // Add drag event listeners
+            item.addEventListener('mousedown', (e) => startDraggingBuilding(template.id, e));
+            item.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startDraggingBuilding(template.id, e);
+            }, { passive: false });
         }
         
         elements.buildingsContainer.appendChild(item);
@@ -672,9 +841,6 @@ function buyUpgrade(upgradeId) {
             case 'landDiscount':
                 gameState.landCost = Math.floor(gameState.landCost * upgrade.value);
                 break;
-            case 'buildingMultiplier':
-                // Already applied in calculateIncome
-                break;
         }
         
         renderUpgrades();
@@ -713,94 +879,26 @@ function updateDisplay() {
             ? '<i class="fas fa-robot"></i> Auto: ON'
             : '<i class="fas fa-robot"></i> Auto: OFF';
     }
-    
-    // Update map display
-    updateMapDisplay();
 }
 
 // Update Land Display
 function updateLandDisplay() {
-    const percent = Math.min(100, (gameState.usedLand / gameState.totalLand) * 100);
+    const purchasedPlots = document.querySelectorAll('.land-plot.purchased').length;
+    const percent = Math.min(100, (gameState.usedLand / purchasedPlots) * 100) || 0;
     elements.landFill.style.width = `${percent}%`;
-    elements.landPercent.textContent = `${Math.round(percent)}%`;
+    elements.landPercent.textContent = purchasedPlots > 0 ? `${Math.round(percent)}%` : '0%';
 }
 
 // Update Map Display
 function updateMapDisplay() {
     const currentMap = gameState.maps[gameState.currentMap];
-    const nextMap = getNextMap();
     
     elements.currentMap.textContent = currentMap.name;
     elements.mapNameDisplay.textContent = `${currentMap.name} District`;
     elements.mapDescription.textContent = currentMap.description;
     
-    if (nextMap) {
-        elements.nextMapPrice.textContent = formatMoney(nextMap.unlockCost);
-        
-        // Calculate progress
-        const progress = Math.min(100, (gameState.money / nextMap.unlockCost) * 100);
-        elements.mapProgress.style.width = `${progress}%`;
-    } else {
-        elements.nextMapPrice.textContent = 'MAX';
-        elements.mapProgress.style.width = '100%';
-    }
-}
-
-// Get Next Map to Unlock
-function getNextMap() {
-    const maps = Object.values(gameState.maps);
-    for (const map of maps) {
-        if (!map.unlocked) {
-            return map;
-        }
-    }
-    return null;
-}
-
-// Check Map Unlocks
-function checkMapUnlocks() {
-    const nextMap = getNextMap();
-    
-    if (nextMap && gameState.money >= nextMap.unlockCost && !nextMap.unlocked) {
-        unlockMap(nextMap);
-    }
-}
-
-// Unlock Map
-function unlockMap(map) {
-    map.unlocked = true;
-    
-    // Show unlock modal
-    const unlockModal = document.getElementById('map-unlock-modal');
-    const mapCard = document.getElementById('unlocked-map-card');
-    
-    document.getElementById('unlocked-map-name').textContent = map.name;
-    document.getElementById('unlock-bonus').textContent = `+${((map.incomeMultiplier - 1) * 100).toFixed(0)}% Income Bonus`;
-    document.getElementById('unlock-description').textContent = map.description;
-    
-    // Set map icon based on name
-    let icon = '🏙️';
-    if (map.name.includes('Suburb')) icon = '🏘️';
-    if (map.name.includes('Industrial')) icon = '🏭';
-    if (map.name.includes('Beach')) icon = '🌊';
-    if (map.name.includes('Mountain')) icon = '⛰️';
-    mapCard.querySelector('.map-icon').textContent = icon;
-    
-    unlockModal.style.display = 'flex';
-    showNotification(`New map unlocked: ${map.name}!`, 'success');
-}
-
-// Switch to New Map
-function switchToNewMap() {
-    const nextMap = getNextMap();
-    if (nextMap) {
-        gameState.currentMap = Object.keys(gameState.maps).find(key => 
-            gameState.maps[key].name === nextMap.name
-        );
-        updateMapDisplay();
-        document.getElementById('map-unlock-modal').style.display = 'none';
-        showNotification(`Switched to ${nextMap.name}!`, 'success');
-    }
+    elements.nextMapPrice.textContent = 'Coming Soon';
+    elements.mapProgress.style.width = '100%';
 }
 
 // Show Building Modal
@@ -862,6 +960,7 @@ function upgradeBuilding(buildingId) {
         building.cost = upgradeCost;
         
         updateDisplay();
+        renderLandGrid();
         elements.buildingModal.style.display = 'none';
         showNotification(`${building.name} upgraded to level ${building.level}!`, 'success');
     } else {
@@ -874,69 +973,49 @@ function sellBuilding(buildingId) {
     const building = gameState.buildings.find(b => b.id === buildingId);
     const sellPrice = Math.floor(building.cost * 0.7);
     
-    gameState.money += sellPrice;
-    gameState.usedLand -= building.space;
-    gameState.buildings = gameState.buildings.filter(b => b.id !== buildingId);
-    
-    renderCityGrid();
-    renderBuildingsShop();
-    updateDisplay();
-    elements.buildingModal.style.display = 'none';
-    
-    showNotification(`Sold ${building.name} for $${sellPrice}!`, 'success');
-}
-
-// Prestige System
-function prestige() {
-    if (gameState.money >= 1000000) {
-        if (confirm('Prestige will reset your progress but give you a permanent 2x income multiplier. Continue?')) {
-            gameState.prestigeLevel = (gameState.prestigeLevel || 0) + 1;
-            gameState.money = 1000;
-            gameState.buildings = [];
-            gameState.usedLand = 0;
-            gameState.upgrades = JSON.parse(JSON.stringify(initialUpgrades));
-            
-            // Apply prestige multiplier to all future income
-            const prestigeMultiplier = 1 + (gameState.prestigeLevel * 0.5);
-            
-            renderCityGrid();
-            renderBuildingsShop();
-            renderUpgrades();
-            updateDisplay();
-            
-            showNotification(`Prestiged! All income now multiplied by ${prestigeMultiplier}x!`, 'success');
-        }
-    } else {
-        showNotification('Need $1,000,000 to prestige!', 'error');
+    if (confirm(`Sell ${building.name} for $${sellPrice}?`)) {
+        gameState.money += sellPrice;
+        gameState.usedLand -= building.space;
+        gameState.buildings = gameState.buildings.filter(b => b.id !== buildingId);
+        
+        renderLandGrid();
+        renderBuildingsShop();
+        updateDisplay();
+        elements.buildingModal.style.display = 'none';
+        
+        showNotification(`Sold ${building.name} for $${sellPrice}!`, 'success');
     }
-}
-
-// Clear Selection
-function clearSelection() {
-    gameState.buildingToPlace = null;
-    showNotification('Building selection cleared.', 'info');
 }
 
 // Show Help
 function showHelp() {
     alert(`
-=== MINI CITY TYCOON GUIDE ===
+=== MINI CITY TYCOON - DRAG & DROP GUIDE ===
 
-1. CLICK the main button to earn money
-2. BUY BUILDINGS from the shop
-3. PLACE BUILDINGS on empty land plots
-4. BUILDINGS generate passive income every second
-5. UPGRADES boost your income and efficiency
-6. BUY MORE LAND to expand your city
-7. UNLOCK NEW MAPS by reaching money milestones
-8. SAVE your progress automatically
+HOW TO PLAY:
+1. Click the main button to earn money
+2. Drag buildings from the SHOP to the MAP
+3. Green plots are purchased land - drag buildings here
+4. Click on buildings to manage/upgrade/sell them
+5. Buy more land plots when you run out of space
+6. Purchase upgrades for permanent bonuses
 
-TIP: Start with Lemonade Stands and Apartments!
+DRAG & DROP:
+- Click and hold a building in the shop
+- Drag it to a green plot on the map
+- Release to place the building
+- Red highlight means invalid location
+- Green highlight means valid location
+
+TIP: Start with Lemonade Stands on purchased plots!
     `);
 }
 
 // Show Stats
 function showStats() {
+    const purchasedPlots = document.querySelectorAll('.land-plot.purchased').length;
+    const emptyPlots = purchasedPlots - gameState.usedLand;
+    
     alert(`
 === GAME STATISTICS ===
 
@@ -945,13 +1024,15 @@ Click Revenue: $${gameState.clickRevenue}
 Play Time: ${formatTime(gameState.playTime)}
 Buildings Owned: ${gameState.buildings.length}
 Total Population: ${gameState.population}
-Current Map: ${gameState.maps[gameState.currentMap].name}
-Prestige Level: ${gameState.prestigeLevel || 0}
+Land Usage: ${gameState.usedLand}/${purchasedPlots} plots
+Empty Plots Available: ${emptyPlots}
 
 Income Breakdown:
 - Click Income: $${gameState.perClick}/click
 - Passive Income: $${gameState.perSecond}/sec
 - Total Money: $${gameState.money}
+
+Upgrades Purchased: ${Object.values(gameState.upgrades).filter(u => u.purchased).length}/3
     `);
 }
 
@@ -963,7 +1044,6 @@ function saveGame() {
     };
     
     localStorage.setItem('miniCityTycoonSave', JSON.stringify(saveData));
-    elements.lastSave.textContent = 'Just now';
     showNotification('Game saved successfully!', 'success');
 }
 
@@ -1018,7 +1098,9 @@ function resetGame() {
             population: 0,
             currentMap: 'downtown',
             buildings: [],
-            buildingToPlace: null,
+            draggingBuilding: null,
+            dragStartPos: { x: 0, y: 0 },
+            dragOffset: { x: 0, y: 0 },
             lastSave: Date.now(),
             lastUpdate: Date.now()
         });
@@ -1033,7 +1115,7 @@ function resetGame() {
             upgrade.purchased = false;
         });
         
-        renderCityGrid();
+        renderLandGrid();
         renderBuildingsShop();
         renderUpgrades();
         updateMapDisplay();
@@ -1115,50 +1197,6 @@ function showNotification(message, type = 'success') {
         notification.classList.remove('show');
     }, 3000);
 }
-
-// Initial upgrades backup
-const initialUpgrades = {
-    clickPower: {
-        id: 'clickPower',
-        name: 'Better Clicking',
-        description: 'Double your click value',
-        cost: 200,
-        purchased: false,
-        effect: 'clickMultiplier',
-        value: 2,
-        icon: '⚡'
-    },
-    landDiscount: {
-        id: 'landDiscount',
-        name: 'Land Discount',
-        description: 'Reduce land cost by 30%',
-        cost: 1000,
-        purchased: false,
-        effect: 'landDiscount',
-        value: 0.7,
-        icon: '🏙️'
-    },
-    autoClicker: {
-        id: 'autoClicker',
-        name: 'Auto Clicker',
-        description: 'Automatically click every second',
-        cost: 5000,
-        purchased: false,
-        effect: 'autoClick',
-        value: true,
-        icon: '🤖'
-    },
-    buildingBoost: {
-        id: 'buildingBoost',
-        name: 'Building Boost',
-        description: 'All buildings produce 25% more',
-        cost: 10000,
-        purchased: false,
-        effect: 'buildingMultiplier',
-        value: 1.25,
-        icon: '📈'
-    }
-};
 
 // Initialize game when page loads
 window.addEventListener('DOMContentLoaded', init);
