@@ -29,16 +29,16 @@
             <div class="stat-item">
                 <div class="stat-label">
                     <i class="fas fa-chart-line"></i>
-                    <span>Income/Sec</span>
+                    <span>Income</span>
                 </div>
-                <div class="stat-value" id="per-second">$0</div>
+                <div class="stat-value" id="per-second">$0/sec</div>
             </div>
             <div class="stat-item">
                 <div class="stat-label">
-                    <i class="fas fa-expand-arrows-alt"></i>
+                    <i class="fas fa-expand"></i>
                     <span>Land</span>
                 </div>
-                <div class="stat-value"><span id="land-used">0</span>/<span id="land-total">16</span></div>
+                <div class="stat-value" id="land-stats">0/16</div>
             </div>
         </div>
 
@@ -46,16 +46,13 @@
         <div class="shop-section">
             <h3 class="section-title">
                 <i class="fas fa-building"></i>
-                Building Shop
-                <div class="drag-hint">
-                    <i class="fas fa-hand-point-up"></i>
-                    Drag to place
-                </div>
+                Buildings
             </h3>
             <div class="shop-filters">
                 <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="basic">Basic</button>
-                <button class="filter-btn" data-filter="advanced">Advanced</button>
+                <button class="filter-btn" data-filter="small">Small</button>
+                <button class="filter-btn" data-filter="medium">Medium</button>
+                <button class="filter-btn" data-filter="large">Large</button>
             </div>
             <div class="buildings-list" id="buildings-container">
                 <!-- Buildings will be loaded here -->
@@ -79,13 +76,13 @@
         <!-- Top Bar -->
         <header class="top-bar">
             <div class="game-title">
-                <h2 id="map-name-display">City Builder</h2>
-                <p class="game-subtitle" id="map-description">Drag buildings to green plots. Large buildings take multiple slots.</p>
+                <h2>City Builder</h2>
+                <p class="game-subtitle">Click building → Click empty plot to build</p>
             </div>
             <div class="player-controls">
                 <button id="buy-land-btn" class="btn land-btn">
                     <i class="fas fa-expand"></i>
-                    Buy Land Plot ($<span id="land-cost">500</span>)
+                    Buy Land ($<span id="land-cost">500</span>)
                 </button>
                 <button id="save-btn" class="btn">
                     <i class="fas fa-save"></i>
@@ -97,85 +94,104 @@
         <!-- City View -->
         <div class="city-container">
             <div class="city-header">
-                <h3><i class="fas fa-map-marked-alt"></i> City Grid</h3>
+                <div class="selected-building-info" id="selected-building-info">
+                    <div class="selected-icon" id="selected-icon">🏗️</div>
+                    <div class="selected-details">
+                        <h4>No Building Selected</h4>
+                        <p>Click a building in the shop first</p>
+                    </div>
+                </div>
                 <div class="city-stats">
-                    <span><i class="fas fa-home"></i> Buildings: <strong id="building-count">0</strong></span>
-                    <span><i class="fas fa-users"></i> Population: <strong id="population">0</strong></span>
-                    <span><i class="fas fa-coins"></i> Click: <strong id="per-click">$1</strong></span>
+                    <div class="stat">
+                        <i class="fas fa-home"></i>
+                        <span>Buildings: <strong id="building-count">0</strong></span>
+                    </div>
+                    <div class="stat">
+                        <i class="fas fa-users"></i>
+                        <span>People: <strong id="population">0</strong></span>
+                    </div>
+                    <div class="stat">
+                        <i class="fas fa-coins"></i>
+                        <span>Click: <strong id="per-click">$1</strong></span>
+                    </div>
                 </div>
             </div>
             
             <!-- City Grid -->
             <div class="city-grid-container">
-                <div class="grid-controls">
-                    <div class="land-info">
-                        <div class="land-meter">
-                            <div class="meter-label">
-                                <i class="fas fa-map-marker-alt"></i>
-                                Land Usage
-                            </div>
-                            <div class="meter-bar">
-                                <div class="meter-fill" id="land-fill"></div>
-                            </div>
-                            <span class="meter-percent" id="land-percent">0%</span>
+                <div class="grid-header">
+                    <h3><i class="fas fa-map"></i> City Grid (5x5)</h3>
+                    <div class="land-meter">
+                        <div class="meter-label">
+                            <span>Used:</span>
+                            <strong id="land-used">0</strong>/<strong id="land-total">16</strong>
                         </div>
-                    </div>
-                    <div class="control-buttons">
-                        <div class="selected-building" id="selected-building-info">
-                            <span>Selected: <strong id="dragging-name">None</strong></span>
-                            <div class="building-size" id="building-size-display">Size: 1x1</div>
+                        <div class="meter-bar">
+                            <div class="meter-fill" id="land-fill"></div>
                         </div>
+                        <span class="meter-percent" id="land-percent">0%</span>
                     </div>
                 </div>
                 
                 <!-- Grid Container -->
                 <div class="grid-wrapper">
-                    <div class="land-grid" id="land-grid">
-                        <!-- Land plots will be generated here -->
+                    <div class="grid-coordinates">
+                        <div class="coordinates-x">
+                            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+                        </div>
+                        <div class="coordinates-y">
+                            <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span>
+                        </div>
                     </div>
                     
-                    <!-- Drag Preview Overlay -->
-                    <div class="drag-preview-overlay" id="drag-preview-overlay">
-                        <!-- Multi-slot preview will be drawn here -->
+                    <div class="land-grid" id="land-grid">
+                        <!-- 5x5 grid will be generated here -->
                     </div>
+                    
+                    <!-- Grid Preview Overlay -->
+                    <div class="grid-preview-overlay" id="grid-preview-overlay"></div>
                 </div>
                 
-                <!-- Legend -->
-                <div class="grid-legend">
-                    <div class="legend-item">
-                        <div class="legend-color purchased"></div>
-                        <span>Empty Plot</span>
+                <!-- Grid Controls -->
+                <div class="grid-controls">
+                    <div class="instructions">
+                        <i class="fas fa-info-circle"></i>
+                        <span id="drag-instruction">Select a building, then click an empty green plot</span>
                     </div>
-                    <div class="legend-item">
-                        <div class="legend-color occupied"></div>
-                        <span>Occupied</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color invalid"></div>
-                        <span>Invalid (Drag Here)</span>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-color empty"></div>
+                            <span>Empty</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color purchased"></div>
+                            <span>Available</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color occupied"></div>
+                            <span>Built</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Main Click Button -->
-            <div class="clicker-section">
+            <!-- Quick Actions -->
+            <div class="quick-actions-section">
                 <div class="clicker-card">
-                    <div class="clicker-header">
-                        <h4><i class="fas fa-hand-point-up"></i> Quick Income</h4>
-                        <div class="clicker-info">
-                            <span class="click-value">$<span id="click-value-display">1</span> per click</span>
-                            <span class="auto-click" id="auto-click-status"><i class="fas fa-robot"></i> Auto: Off</span>
-                        </div>
-                    </div>
                     <button id="click-button" class="clicker-button">
-                        <div class="clicker-animation">
-                            <div class="coin-animation">
-                                <i class="fas fa-coins"></i>
-                            </div>
+                        <div class="clicker-icon">
+                            <i class="fas fa-hand-holding-usd"></i>
                         </div>
-                        <span class="click-text">Collect Revenue</span>
+                        <div class="clicker-text">
+                            <span class="click-label">Collect Taxes</span>
+                            <span class="click-value">$<span id="click-value-display">1</span> per click</span>
+                        </div>
                     </button>
                     <div class="clicker-stats">
+                        <div class="stat">
+                            <span>Auto Clicker</span>
+                            <strong id="auto-click-status">OFF</strong>
+                        </div>
                         <div class="stat">
                             <span>Total Clicks</span>
                             <strong id="total-clicks">0</strong>
@@ -186,15 +202,26 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="action-buttons">
+                    <button id="clear-btn" class="btn secondary">
+                        <i class="fas fa-times"></i>
+                        Clear Selection
+                    </button>
+                    <button id="help-btn" class="btn">
+                        <i class="fas fa-question-circle"></i>
+                        Help
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Bottom Stats -->
+        <!-- Bottom Bar -->
         <footer class="bottom-bar">
             <div class="game-info">
-                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v3.0</span>
-                <span><i class="fas fa-mouse-pointer"></i> <span id="drag-instruction">Click building in shop, then click plot</span></span>
+                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v4.0</span>
                 <span><i class="fas fa-clock"></i> Play Time: <span id="play-time">00:00</span></span>
+                <span><i class="fas fa-chart-line"></i> Income: $<span id="income-display">0</span>/sec</span>
             </div>
             <div class="quick-actions">
                 <button id="load-btn" class="btn secondary small">
@@ -205,9 +232,9 @@
                     <i class="fas fa-redo"></i>
                     Reset
                 </button>
-                <button id="help-btn" class="btn small">
-                    <i class="fas fa-question-circle"></i>
-                    Help
+                <button id="stats-btn" class="btn small">
+                    <i class="fas fa-chart-bar"></i>
+                    Stats
                 </button>
             </div>
         </footer>
