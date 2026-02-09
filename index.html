@@ -40,13 +40,6 @@
                 </div>
                 <div class="stat-value"><span id="land-used">0</span>/<span id="land-total">16</span></div>
             </div>
-            <div class="stat-item">
-                <div class="stat-label">
-                    <i class="fas fa-map"></i>
-                    <span>Map</span>
-                </div>
-                <div class="stat-value" id="current-map">Downtown</div>
-            </div>
         </div>
 
         <!-- Building Shop -->
@@ -85,11 +78,9 @@
     <main class="main-content">
         <!-- Top Bar -->
         <header class="top-bar">
-            <div class="map-selector">
-                <div class="map-info">
-                    <h2 id="map-name-display">Downtown District</h2>
-                    <p class="map-description" id="map-description">A bustling urban center perfect for starting your empire</p>
-                </div>
+            <div class="game-title">
+                <h2 id="map-name-display">City Builder</h2>
+                <p class="game-subtitle" id="map-description">Drag buildings to green plots. Large buildings take multiple slots.</p>
             </div>
             <div class="player-controls">
                 <button id="buy-land-btn" class="btn land-btn">
@@ -100,17 +91,13 @@
                     <i class="fas fa-save"></i>
                     Save
                 </button>
-                <button id="help-btn" class="btn secondary">
-                    <i class="fas fa-question-circle"></i>
-                    Help
-                </button>
             </div>
         </header>
 
         <!-- City View -->
         <div class="city-container">
             <div class="city-header">
-                <h3><i class="fas fa-map-marked-alt"></i> City Builder</h3>
+                <h3><i class="fas fa-map-marked-alt"></i> City Grid</h3>
                 <div class="city-stats">
                     <span><i class="fas fa-home"></i> Buildings: <strong id="building-count">0</strong></span>
                     <span><i class="fas fa-users"></i> Population: <strong id="population">0</strong></span>
@@ -118,7 +105,7 @@
                 </div>
             </div>
             
-            <!-- City Grid with Base Map -->
+            <!-- City Grid -->
             <div class="city-grid-container">
                 <div class="grid-controls">
                     <div class="land-info">
@@ -134,49 +121,39 @@
                         </div>
                     </div>
                     <div class="control-buttons">
-                        <button id="clear-drag-btn" class="btn secondary">
-                            <i class="fas fa-times"></i>
-                            Cancel Drag
-                        </button>
-                        <div class="selected-building" id="selected-building-info" style="display: none;">
-                            <span>Dragging: <strong id="dragging-name">-</strong></span>
+                        <div class="selected-building" id="selected-building-info">
+                            <span>Selected: <strong id="dragging-name">None</strong></span>
+                            <div class="building-size" id="building-size-display">Size: 1x1</div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Base Map Container -->
-                <div class="base-map-container" id="base-map-container">
-                    <div class="base-map" id="base-map">
-                        <!-- Land Grid -->
-                        <div class="land-grid" id="land-grid">
-                            <!-- Land plots will be generated here -->
-                        </div>
-                        
-                        <!-- Drag Preview -->
-                        <div class="drag-preview" id="drag-preview"></div>
+                <!-- Grid Container -->
+                <div class="grid-wrapper">
+                    <div class="land-grid" id="land-grid">
+                        <!-- Land plots will be generated here -->
                     </div>
                     
-                    <!-- Map Legend -->
-                    <div class="map-legend">
-                        <div class="legend-item">
-                            <div class="legend-color purchased"></div>
-                            <span>Empty Plot</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color occupied"></div>
-                            <span>Occupied</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color locked"></div>
-                            <span>Locked</span>
-                        </div>
+                    <!-- Drag Preview Overlay -->
+                    <div class="drag-preview-overlay" id="drag-preview-overlay">
+                        <!-- Multi-slot preview will be drawn here -->
                     </div>
                 </div>
                 
-                <!-- Status Message -->
-                <div class="status-message" id="status-message">
-                    <i class="fas fa-info-circle"></i>
-                    <span>Drag a building from the shop to an empty green plot</span>
+                <!-- Legend -->
+                <div class="grid-legend">
+                    <div class="legend-item">
+                        <div class="legend-color purchased"></div>
+                        <span>Empty Plot</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color occupied"></div>
+                        <span>Occupied</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color invalid"></div>
+                        <span>Invalid (Drag Here)</span>
+                    </div>
                 </div>
             </div>
 
@@ -194,11 +171,6 @@
                         <div class="clicker-animation">
                             <div class="coin-animation">
                                 <i class="fas fa-coins"></i>
-                            </div>
-                            <div class="city-animation">
-                                <div class="building b1"></div>
-                                <div class="building b2"></div>
-                                <div class="building b3"></div>
                             </div>
                         </div>
                         <span class="click-text">Collect Revenue</span>
@@ -220,8 +192,8 @@
         <!-- Bottom Stats -->
         <footer class="bottom-bar">
             <div class="game-info">
-                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v2.1</span>
-                <span><i class="fas fa-mouse-pointer"></i> <span id="drag-instruction">Click and drag buildings</span></span>
+                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v3.0</span>
+                <span><i class="fas fa-mouse-pointer"></i> <span id="drag-instruction">Click building in shop, then click plot</span></span>
                 <span><i class="fas fa-clock"></i> Play Time: <span id="play-time">00:00</span></span>
             </div>
             <div class="quick-actions">
@@ -233,9 +205,9 @@
                     <i class="fas fa-redo"></i>
                     Reset
                 </button>
-                <button id="stats-btn" class="btn small">
-                    <i class="fas fa-chart-bar"></i>
-                    Stats
+                <button id="help-btn" class="btn small">
+                    <i class="fas fa-question-circle"></i>
+                    Help
                 </button>
             </div>
         </footer>
@@ -253,9 +225,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Drag Ghost -->
-    <div id="drag-ghost" class="drag-ghost"></div>
 
     <!-- Notification -->
     <div id="notification" class="notification">
