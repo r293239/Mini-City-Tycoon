@@ -1040,4 +1040,141 @@ body {
     margin-bottom: 5px;
 }
 
-.building-stats-grid
+.building-stats-grid .stat strong {
+    display: block;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+
+.upgrade-btn {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
+/* Notification */
+.notification {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 15px 20px;
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    transform: translateX(400px);
+    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1001;
+    max-width: 350px;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notification-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.notification.success {
+    border-left-color: var(--success-color);
+}
+
+.notification.success .notification-icon::before {
+    content: '✓';
+    color: var(--success-color);
+}
+
+.notification.error {
+    border-left-color: var(--danger-color);
+}
+
+.notification.error .notification-icon::before {
+    content: '⚠';
+    color: var(--danger-color);
+}
+
+.notification.info {
+    border-left-color: var(--accent-color);
+}
+
+.notification.info .notification-icon::before {
+    content: 'ℹ';
+    color: var(--accent-color);
+}
+
+.notification-text {
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .sidebar {
+        width: 280px;
+    }
+}
+
+@media (max-width: 900px) {
+    body {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        max-height: 400px;
+    }
+    
+    .land-grid {
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .city-stats {
+        gap: 10px;
+    }
+    
+    .clicker-info {
+        gap: 10px;
+    }
+    
+    .land-grid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+    }
+}
