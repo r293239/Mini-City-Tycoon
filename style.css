@@ -27,6 +27,8 @@
     --occupied-land: rgba(76, 175, 80, 0.3);
     --locked-land: rgba(239, 68, 68, 0.3);
     --hover-land: rgba(76, 201, 240, 0.3);
+    --valid-preview: rgba(76, 175, 80, 0.5);
+    --invalid-preview: rgba(239, 68, 68, 0.5);
 }
 
 body {
@@ -193,15 +195,11 @@ body {
     border: 2px solid transparent;
     border-radius: 10px;
     padding: 15px;
-    cursor: grab;
+    cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
     user-select: none;
-}
-
-.building-item:active {
-    cursor: grabbing;
 }
 
 .building-item:hover {
@@ -210,9 +208,10 @@ body {
     border-color: var(--accent-color);
 }
 
-.building-item.dragging {
-    opacity: 0.4;
-    transform: scale(0.95);
+.building-item.selected {
+    background: rgba(76, 201, 240, 0.2);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 15px rgba(76, 201, 240, 0.3);
 }
 
 .building-item.disabled {
@@ -295,19 +294,19 @@ body {
     flex-shrink: 0;
 }
 
-.map-selector {
+.game-title {
     flex: 1;
     min-width: 300px;
 }
 
-.map-info h2 {
+.game-title h2 {
     font-family: 'Montserrat', sans-serif;
     font-size: 1.5rem;
     margin-bottom: 5px;
     color: var(--text-primary);
 }
 
-.map-description {
+.game-subtitle {
     color: var(--text-secondary);
     font-size: 0.9rem;
 }
@@ -420,7 +419,7 @@ body {
     margin-left: 5px;
 }
 
-/* Base Map Container */
+/* City Grid Container */
 .city-grid-container {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
@@ -455,19 +454,27 @@ body {
 
 .selected-building {
     background: rgba(255, 255, 255, 0.1);
-    padding: 8px 15px;
+    padding: 12px 20px;
     border-radius: 8px;
-    border: 1px solid var(--accent-color);
+    border: 2px solid var(--accent-color);
     color: var(--text-secondary);
     font-size: 0.9rem;
+    min-width: 200px;
 }
 
 .selected-building strong {
     color: var(--accent-color);
+    font-size: 1rem;
 }
 
-/* Base Map */
-.base-map-container {
+.building-size {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 5px;
+}
+
+/* Grid Wrapper */
+.grid-wrapper {
     position: relative;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
@@ -476,18 +483,8 @@ body {
     flex: 1;
     min-height: 400px;
     display: flex;
-    flex-direction: column;
-}
-
-.base-map {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    background: linear-gradient(45deg, #1a202c, #2d3748);
-    display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
 }
 
 /* Land Grid */
@@ -495,19 +492,21 @@ body {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 10px;
+    gap: 2px;
     width: 100%;
     max-width: 600px;
     aspect-ratio: 1;
-    z-index: 1;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px;
+    border-radius: 8px;
 }
 
 .land-plot {
     background: rgba(255, 255, 255, 0.05);
-    border: 3px solid transparent;
-    border-radius: 8px;
+    border: 2px solid transparent;
+    border-radius: 4px;
     position: relative;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     cursor: pointer;
     overflow: hidden;
     display: flex;
@@ -516,9 +515,8 @@ body {
     justify-content: center;
 }
 
-.land-plot:hover:not(.locked):not(.occupied) {
+.land-plot:hover:not(.occupied):not(.locked) {
     background: rgba(255, 255, 255, 0.1);
-    border-color: var(--accent-color);
 }
 
 .land-plot.purchased {
@@ -530,7 +528,7 @@ body {
 .land-plot.occupied {
     background: var(--occupied-land);
     border-color: rgba(76, 175, 80, 0.5);
-    cursor: pointer;
+    cursor: default;
 }
 
 .land-plot.locked {
@@ -539,10 +537,16 @@ body {
     cursor: not-allowed;
 }
 
-.land-plot.highlight {
-    animation: highlightPlot 0.5s ease infinite alternate;
-    border-color: var(--accent-color) !important;
-    background: var(--hover-land) !important;
+.land-plot.invalid {
+    animation: invalidPulse 0.5s ease infinite alternate;
+    border-color: var(--danger-color) !important;
+    background: var(--invalid-preview) !important;
+}
+
+.land-plot.valid {
+    animation: validPulse 0.5s ease infinite alternate;
+    border-color: var(--success-color) !important;
+    background: var(--valid-preview) !important;
 }
 
 @keyframes plotGlow {
@@ -554,12 +558,21 @@ body {
     }
 }
 
-@keyframes highlightPlot {
+@keyframes validPulse {
     from {
-        background: var(--hover-land);
+        background: var(--valid-preview);
     }
     to {
-        background: rgba(76, 201, 240, 0.5);
+        background: rgba(76, 175, 80, 0.7);
+    }
+}
+
+@keyframes invalidPulse {
+    from {
+        background: var(--invalid-preview);
+    }
+    to {
+        background: rgba(239, 68, 68, 0.7);
     }
 }
 
@@ -571,11 +584,11 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 10px;
+    padding: 5px;
 }
 
 .plot-plus {
-    font-size: 2rem;
+    font-size: 1.5rem;
     color: rgba(255, 255, 255, 0.3);
 }
 
@@ -586,31 +599,31 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: space-between;
-    padding: 5px;
+    padding: 2px;
 }
 
 .building-visual {
-    width: 80%;
+    width: 90%;
     flex: 1;
     background: currentColor;
-    border-radius: 4px 4px 0 0;
+    border-radius: 3px 3px 0 0;
     position: relative;
-    margin-bottom: 5px;
+    margin-bottom: 2px;
 }
 
 .building-visual::after {
     content: '';
     position: absolute;
-    bottom: -3px;
+    bottom: -2px;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 2px;
     background: inherit;
     opacity: 0.8;
 }
 
 .building-label {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     text-align: center;
     color: white;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
@@ -620,103 +633,59 @@ body {
     width: 100%;
 }
 
-/* Drag Preview */
-.drag-preview {
+/* Multi-slot Building */
+.building-visual.multi-slot {
+    width: 95%;
+    height: 95%;
+    border-radius: 3px;
+}
+
+/* Drag Preview Overlay */
+.drag-preview-overlay {
     position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-    z-index: 100;
-    opacity: 0.8;
-    transition: all 0.1s ease;
+    z-index: 10;
     display: none;
-    border-radius: 8px;
 }
 
-.drag-preview.show {
+.drag-preview-overlay.active {
     display: block;
 }
 
-.drag-preview.valid {
-    border: 3px solid var(--success-color);
-    background: rgba(76, 175, 80, 0.2);
+.preview-slot {
+    position: absolute;
+    border: 2px solid;
+    border-radius: 4px;
+    transition: all 0.2s ease;
 }
 
-.drag-preview.invalid {
-    border: 3px solid var(--danger-color);
-    background: rgba(239, 68, 68, 0.2);
+.preview-slot.valid {
+    border-color: var(--success-color);
+    background: rgba(76, 175, 80, 0.3);
 }
 
-/* Drag Ghost */
-.drag-ghost {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.9;
-    transform: translate(-50%, -50%);
-    display: none;
-    padding: 15px;
-    background: rgba(30, 41, 59, 0.95);
-    border-radius: 10px;
-    border: 2px solid var(--accent-color);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(5px);
+.preview-slot.invalid {
+    border-color: var(--danger-color);
+    background: rgba(239, 68, 68, 0.3);
 }
 
-.drag-ghost.show {
-    display: block;
-}
-
-.drag-ghost-content {
+/* Grid Legend */
+.grid-legend {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    white-space: nowrap;
-}
-
-.drag-ghost-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
     justify-content: center;
-    font-size: 1.3rem;
-    color: white;
-    flex-shrink: 0;
-}
-
-.drag-ghost-name {
-    font-weight: 600;
-    font-size: 1rem;
-    color: white;
-}
-
-.drag-ghost-cost {
-    color: #FFD700;
-    font-weight: 600;
-    font-size: 0.9rem;
-    margin-left: 10px;
-}
-
-/* Map Legend */
-.map-legend {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(30, 41, 59, 0.9);
-    border-radius: 8px;
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 3;
-    backdrop-filter: blur(5px);
+    gap: 20px;
+    margin-top: 20px;
+    flex-wrap: wrap;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
@@ -725,7 +694,7 @@ body {
     width: 15px;
     height: 15px;
     border-radius: 3px;
-    border: 2px solid currentColor;
+    border: 2px solid;
 }
 
 .legend-color.purchased {
@@ -738,27 +707,9 @@ body {
     border-color: rgba(76, 175, 80, 0.5);
 }
 
-.legend-color.locked {
-    background: var(--locked-land);
-    border-color: rgba(239, 68, 68, 0.5);
-}
-
-/* Status Message */
-.status-message {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 12px 20px;
-    margin-top: 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    border: 1px solid var(--border-color);
-}
-
-.status-message i {
-    color: var(--accent-color);
+.legend-color.invalid {
+    background: var(--invalid-preview);
+    border-color: var(--danger-color);
 }
 
 /* Land Meter */
@@ -902,34 +853,9 @@ body {
     color: #FFD700;
 }
 
-.city-animation {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 30px;
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    align-items: flex-end;
-}
-
-.building {
-    background: white;
-    border-radius: 2px 2px 0 0;
-}
-
-.b1 { width: 15px; height: 25px; animation: glow 2s ease-in-out infinite; }
-.b2 { width: 20px; height: 35px; animation: glow 2s ease-in-out infinite 0.2s; }
-.b3 { width: 12px; height: 20px; animation: glow 2s ease-in-out infinite 0.4s; }
-
 @keyframes rotate {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
-}
-
-@keyframes glow {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
 }
 
 .click-text {
@@ -1114,146 +1040,4 @@ body {
     margin-bottom: 5px;
 }
 
-.building-stats-grid .stat strong {
-    display: block;
-    font-size: 1.2rem;
-    color: var(--text-primary);
-}
-
-.modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-top: 25px;
-    flex-wrap: wrap;
-}
-
-.upgrade-btn {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-}
-
-/* Notification */
-.notification {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    background: var(--card-bg);
-    border-radius: 8px;
-    padding: 15px 20px;
-    border-left: 4px solid var(--primary-color);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    transform: translateX(400px);
-    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    z-index: 1001;
-    max-width: 350px;
-}
-
-.notification.show {
-    transform: translateX(0);
-}
-
-.notification-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.notification-icon {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-
-.notification.success {
-    border-left-color: var(--success-color);
-}
-
-.notification.success .notification-icon::before {
-    content: '✓';
-    color: var(--success-color);
-}
-
-.notification.error {
-    border-left-color: var(--danger-color);
-}
-
-.notification.error .notification-icon::before {
-    content: '⚠';
-    color: var(--danger-color);
-}
-
-.notification.info {
-    border-left-color: var(--accent-color);
-}
-
-.notification.info .notification-icon::before {
-    content: 'ℹ';
-    color: var(--accent-color);
-}
-
-.notification-text {
-    font-size: 0.95rem;
-    line-height: 1.4;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-color);
-}
-
-/* Responsive */
-@media (max-width: 1200px) {
-    .sidebar {
-        width: 280px;
-    }
-    
-    .land-grid {
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(4, 1fr);
-    }
-}
-
-@media (max-width: 900px) {
-    body {
-        flex-direction: column;
-    }
-    
-    .sidebar {
-        width: 100%;
-        max-height: 400px;
-    }
-    
-    .land-grid {
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 600px) {
-    .city-stats {
-        gap: 10px;
-    }
-    
-    .clicker-info {
-        gap: 10px;
-    }
-    
-    .land-grid {
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-    }
-}
+.building-stats-grid
