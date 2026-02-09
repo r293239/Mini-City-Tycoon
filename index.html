@@ -90,12 +90,6 @@
                     <h2 id="map-name-display">Downtown District</h2>
                     <p class="map-description" id="map-description">A bustling urban center perfect for starting your empire</p>
                 </div>
-                <div class="map-progression">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="map-progress"></div>
-                    </div>
-                    <span class="progress-text">Next map: <span id="next-map-price">$10,000</span></span>
-                </div>
             </div>
             <div class="player-controls">
                 <button id="buy-land-btn" class="btn land-btn">
@@ -142,30 +136,17 @@
                     <div class="control-buttons">
                         <button id="clear-drag-btn" class="btn secondary">
                             <i class="fas fa-times"></i>
-                            Clear Drag
+                            Cancel Drag
                         </button>
-                        <button id="reset-view-btn" class="btn secondary">
-                            <i class="fas fa-sync-alt"></i>
-                            Reset View
-                        </button>
+                        <div class="selected-building" id="selected-building-info" style="display: none;">
+                            <span>Dragging: <strong id="dragging-name">-</strong></span>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Base Map Container -->
                 <div class="base-map-container" id="base-map-container">
                     <div class="base-map" id="base-map">
-                        <!-- Base map with districts -->
-                        <div class="district commercial-zone"></div>
-                        <div class="district residential-zone"></div>
-                        <div class="district industrial-zone"></div>
-                        <div class="district park-zone"></div>
-                        
-                        <!-- Roads -->
-                        <div class="road horizontal main-road"></div>
-                        <div class="road vertical main-road"></div>
-                        <div class="road horizontal secondary-road"></div>
-                        <div class="road vertical secondary-road"></div>
-                        
                         <!-- Land Grid -->
                         <div class="land-grid" id="land-grid">
                             <!-- Land plots will be generated here -->
@@ -178,22 +159,24 @@
                     <!-- Map Legend -->
                     <div class="map-legend">
                         <div class="legend-item">
-                            <div class="legend-color commercial"></div>
-                            <span>Commercial Zone</span>
+                            <div class="legend-color purchased"></div>
+                            <span>Empty Plot</span>
                         </div>
                         <div class="legend-item">
-                            <div class="legend-color residential"></div>
-                            <span>Residential Zone</span>
+                            <div class="legend-color occupied"></div>
+                            <span>Occupied</span>
                         </div>
                         <div class="legend-item">
-                            <div class="legend-color industrial"></div>
-                            <span>Industrial Zone</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color park"></div>
-                            <span>Park/Green Zone</span>
+                            <div class="legend-color locked"></div>
+                            <span>Locked</span>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Status Message -->
+                <div class="status-message" id="status-message">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Drag a building from the shop to an empty green plot</span>
                 </div>
             </div>
 
@@ -237,8 +220,8 @@
         <!-- Bottom Stats -->
         <footer class="bottom-bar">
             <div class="game-info">
-                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v2.0</span>
-                <span><i class="fas fa-mouse-pointer"></i> <span id="drag-instruction">Drag buildings from shop to map</span></span>
+                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v2.1</span>
+                <span><i class="fas fa-mouse-pointer"></i> <span id="drag-instruction">Click and drag buildings</span></span>
                 <span><i class="fas fa-clock"></i> Play Time: <span id="play-time">00:00</span></span>
             </div>
             <div class="quick-actions">
@@ -271,36 +254,7 @@
         </div>
     </div>
 
-    <!-- Map Unlock Modal -->
-    <div id="map-unlock-modal" class="modal unlock-modal">
-        <div class="modal-content">
-            <div class="unlock-header">
-                <div class="trophy">
-                    <i class="fas fa-trophy"></i>
-                </div>
-                <h2>New District Unlocked!</h2>
-            </div>
-            <div class="unlock-body">
-                <div class="unlock-map-card" id="unlocked-map-card">
-                    <div class="map-icon" id="unlock-map-icon">🏙️</div>
-                    <h3 id="unlocked-map-name">Downtown</h3>
-                    <p class="map-bonus" id="unlock-bonus">+20% Income Bonus</p>
-                </div>
-                <p class="unlock-description" id="unlock-description"></p>
-                <div class="unlock-actions">
-                    <button id="switch-map-btn" class="btn success">
-                        <i class="fas fa-map-marked-alt"></i>
-                        Switch to New District
-                    </button>
-                    <button id="stay-map-btn" class="btn secondary">
-                        Stay in Current District
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Dragging Building Ghost -->
+    <!-- Drag Ghost -->
     <div id="drag-ghost" class="drag-ghost"></div>
 
     <!-- Notification -->
