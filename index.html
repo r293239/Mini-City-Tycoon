@@ -16,8 +16,12 @@
                 <i class="fas fa-city"></i>
                 <h1>City Tycoon</h1>
             </div>
+            <div class="map-indicator">
+                <span class="map-badge" id="current-map-badge">Downtown</span>
+            </div>
         </div>
         
+        <!-- Stats Panel -->
         <div class="stats-panel">
             <div class="stat-item">
                 <div class="stat-label">
@@ -31,14 +35,45 @@
                     <i class="fas fa-chart-line"></i>
                     <span>Income</span>
                 </div>
-                <div class="stat-value" id="per-second">$0/sec</div>
+                <div class="stat-value" id="per-second">$0/s</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">
+                    <i class="fas fa-users"></i>
+                    <span>Population</span>
+                </div>
+                <div class="stat-value" id="population">0</div>
             </div>
             <div class="stat-item">
                 <div class="stat-label">
                     <i class="fas fa-expand"></i>
                     <span>Land</span>
                 </div>
-                <div class="stat-value" id="land-stats">0/16</div>
+                <div class="stat-value" id="land-stats">0/9</div>
+            </div>
+        </div>
+
+        <!-- Map Selection -->
+        <div class="map-selection">
+            <h3 class="section-title">
+                <i class="fas fa-map"></i>
+                Maps
+            </h3>
+            <div class="map-buttons">
+                <button class="map-btn active" data-map="downtown">
+                    <i class="fas fa-city"></i>
+                    <span>Downtown</span>
+                </button>
+                <button class="map-btn locked" data-map="suburbs" id="suburbs-btn">
+                    <i class="fas fa-lock"></i>
+                    <span>Suburbs</span>
+                    <div class="map-lock-info">Unlocks at $10,000</div>
+                </button>
+                <button class="map-btn locked" data-map="industrial" id="industrial-btn">
+                    <i class="fas fa-lock"></i>
+                    <span>Industrial</span>
+                    <div class="map-lock-info">Unlocks at $50,000</div>
+                </button>
             </div>
         </div>
 
@@ -47,15 +82,13 @@
             <h3 class="section-title">
                 <i class="fas fa-building"></i>
                 Buildings
+                <span class="drag-hint">
+                    <i class="fas fa-hand-point-up"></i>
+                    Drag to place
+                </span>
             </h3>
-            <div class="shop-filters">
-                <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="small">Small</button>
-                <button class="filter-btn" data-filter="medium">Medium</button>
-                <button class="filter-btn" data-filter="large">Large</button>
-            </div>
             <div class="buildings-list" id="buildings-container">
-                <!-- Buildings will be loaded here -->
+                <!-- Buildings loaded here -->
             </div>
         </div>
 
@@ -66,7 +99,7 @@
                 Upgrades
             </h3>
             <div class="upgrades-list" id="upgrades-container">
-                <!-- Upgrades will be loaded here -->
+                <!-- Upgrades loaded here -->
             </div>
         </div>
     </aside>
@@ -75,88 +108,67 @@
     <main class="main-content">
         <!-- Top Bar -->
         <header class="top-bar">
-            <div class="game-title">
+            <div class="game-info">
                 <h2>City Builder</h2>
-                <p class="game-subtitle">Click building → Click empty plot to build</p>
+                <p class="game-subtitle" id="map-description">Starting district - perfect for new businesses</p>
             </div>
             <div class="player-controls">
                 <button id="buy-land-btn" class="btn land-btn">
                     <i class="fas fa-expand"></i>
-                    Buy Land ($<span id="land-cost">500</span>)
+                    Buy Plot ($<span id="land-cost">500</span>)
                 </button>
                 <button id="save-btn" class="btn">
                     <i class="fas fa-save"></i>
                     Save
+                </button>
+                <button id="menu-btn" class="btn">
+                    <i class="fas fa-bars"></i>
+                    Menu
                 </button>
             </div>
         </header>
 
         <!-- City View -->
         <div class="city-container">
-            <div class="city-header">
-                <div class="selected-building-info" id="selected-building-info">
-                    <div class="selected-icon" id="selected-icon">🏗️</div>
-                    <div class="selected-details">
-                        <h4>No Building Selected</h4>
-                        <p>Click a building in the shop first</p>
-                    </div>
-                </div>
-                <div class="city-stats">
-                    <div class="stat">
-                        <i class="fas fa-home"></i>
-                        <span>Buildings: <strong id="building-count">0</strong></span>
-                    </div>
-                    <div class="stat">
-                        <i class="fas fa-users"></i>
-                        <span>People: <strong id="population">0</strong></span>
-                    </div>
-                    <div class="stat">
-                        <i class="fas fa-coins"></i>
-                        <span>Click: <strong id="per-click">$1</strong></span>
-                    </div>
-                </div>
-            </div>
-            
             <!-- City Grid -->
             <div class="city-grid-container">
                 <div class="grid-header">
-                    <h3><i class="fas fa-map"></i> City Grid (5x5)</h3>
-                    <div class="land-meter">
-                        <div class="meter-label">
-                            <span>Used:</span>
-                            <strong id="land-used">0</strong>/<strong id="land-total">16</strong>
+                    <div class="selected-info" id="selected-building-info">
+                        <div class="selected-icon" id="selected-icon">🏗️</div>
+                        <div class="selected-details">
+                            <h4 id="selected-name">No Building Selected</h4>
+                            <p id="selected-desc">Drag a building from the sidebar</p>
                         </div>
-                        <div class="meter-bar">
-                            <div class="meter-fill" id="land-fill"></div>
+                    </div>
+                    <div class="grid-stats">
+                        <div class="stat">
+                            <span>Buildings:</span>
+                            <strong id="building-count">0</strong>
                         </div>
-                        <span class="meter-percent" id="land-percent">0%</span>
+                        <div class="stat">
+                            <span>Land Used:</span>
+                            <strong id="land-used">0</strong>/<strong id="land-total">9</strong>
+                        </div>
+                        <div class="stat">
+                            <span>Click Value:</span>
+                            <strong id="per-click">$1</strong>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Grid Container -->
-                <div class="grid-wrapper">
-                    <div class="grid-coordinates">
-                        <div class="coordinates-x">
-                            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-                        </div>
-                        <div class="coordinates-y">
-                            <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span>
-                        </div>
-                    </div>
-                    
+                <!-- City Grid -->
+                <div class="city-grid-wrapper">
                     <div class="land-grid" id="land-grid">
-                        <!-- 5x5 grid will be generated here -->
+                        <!-- Grid plots generated here -->
                     </div>
-                    
-                    <!-- Grid Preview Overlay -->
-                    <div class="grid-preview-overlay" id="grid-preview-overlay"></div>
+                    <div class="grid-preview" id="grid-preview"></div>
                 </div>
                 
-                <!-- Grid Controls -->
-                <div class="grid-controls">
+                <!-- Grid Info -->
+                <div class="grid-info">
                     <div class="instructions">
                         <i class="fas fa-info-circle"></i>
-                        <span id="drag-instruction">Select a building, then click an empty green plot</span>
+                        <span id="drag-instruction">Drag buildings from sidebar to empty green plots</span>
                     </div>
                     <div class="legend">
                         <div class="legend-item">
@@ -164,7 +176,7 @@
                             <span>Empty</span>
                         </div>
                         <div class="legend-item">
-                            <div class="legend-color purchased"></div>
+                            <div class="legend-color available"></div>
                             <span>Available</span>
                         </div>
                         <div class="legend-item">
@@ -175,23 +187,27 @@
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="quick-actions-section">
-                <div class="clicker-card">
+            <!-- Bottom Section -->
+            <div class="bottom-section">
+                <!-- Clicker -->
+                <div class="clicker-section">
+                    <div class="clicker-header">
+                        <h4><i class="fas fa-hand-holding-usd"></i> Quick Income</h4>
+                        <div class="auto-clicker">
+                            <span>Auto Clicker:</span>
+                            <strong id="auto-click-status">OFF</strong>
+                        </div>
+                    </div>
                     <button id="click-button" class="clicker-button">
                         <div class="clicker-icon">
-                            <i class="fas fa-hand-holding-usd"></i>
+                            <i class="fas fa-coins"></i>
                         </div>
                         <div class="clicker-text">
-                            <span class="click-label">Collect Taxes</span>
-                            <span class="click-value">$<span id="click-value-display">1</span> per click</span>
+                            <span>Collect Taxes</span>
+                            <small>$<span id="click-value">1</span> per click</small>
                         </div>
                     </button>
                     <div class="clicker-stats">
-                        <div class="stat">
-                            <span>Auto Clicker</span>
-                            <strong id="auto-click-status">OFF</strong>
-                        </div>
                         <div class="stat">
                             <span>Total Clicks</span>
                             <strong id="total-clicks">0</strong>
@@ -200,58 +216,134 @@
                             <span>Click Revenue</span>
                             <strong id="click-revenue">$0</strong>
                         </div>
+                        <div class="stat">
+                            <span>Play Time</span>
+                            <strong id="play-time">00:00</strong>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="action-buttons">
-                    <button id="clear-btn" class="btn secondary">
-                        <i class="fas fa-times"></i>
-                        Clear Selection
-                    </button>
-                    <button id="help-btn" class="btn">
-                        <i class="fas fa-question-circle"></i>
-                        Help
-                    </button>
+
+                <!-- Rental Queue -->
+                <div class="rental-section" id="rental-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-users"></i> Tenant Applications</h4>
+                        <span class="queue-count" id="queue-count">0 pending</span>
+                    </div>
+                    <div class="tenant-queue" id="tenant-queue">
+                        <!-- Tenants will appear here -->
+                        <div class="empty-queue">
+                            <i class="fas fa-user-clock"></i>
+                            <p>No tenant applications yet.<br>Build apartments to get tenants!</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Bottom Bar -->
-        <footer class="bottom-bar">
-            <div class="game-info">
-                <span><i class="fas fa-gamepad"></i> Mini City Tycoon v4.0</span>
-                <span><i class="fas fa-clock"></i> Play Time: <span id="play-time">00:00</span></span>
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="game-meta">
+                <span><i class="fas fa-gamepad"></i> Mini City Tycoon</span>
                 <span><i class="fas fa-chart-line"></i> Income: $<span id="income-display">0</span>/sec</span>
+                <span><i class="fas fa-star"></i> Prestige: <span id="prestige-level">0</span></span>
             </div>
-            <div class="quick-actions">
-                <button id="load-btn" class="btn secondary small">
+            <div class="footer-controls">
+                <button id="load-btn" class="btn secondary">
                     <i class="fas fa-download"></i>
                     Load
                 </button>
-                <button id="reset-btn" class="btn danger small">
+                <button id="reset-btn" class="btn danger">
                     <i class="fas fa-redo"></i>
                     Reset
-                </button>
-                <button id="stats-btn" class="btn small">
-                    <i class="fas fa-chart-bar"></i>
-                    Stats
                 </button>
             </div>
         </footer>
     </main>
 
-    <!-- Building Info Modal -->
+    <!-- Modals -->
     <div id="building-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modal-title">Building Management</h3>
                 <span class="close-modal">&times;</span>
             </div>
-            <div class="modal-body" id="modal-content">
-                <!-- Dynamic content -->
+            <div class="modal-body" id="modal-content"></div>
+        </div>
+    </div>
+
+    <div id="tenant-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Tenant Application</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body" id="tenant-modal-content"></div>
+        </div>
+    </div>
+
+    <div id="map-unlock-modal" class="modal">
+        <div class="modal-content">
+            <div class="unlock-header">
+                <div class="trophy">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <h2>New District Unlocked!</h2>
+            </div>
+            <div class="unlock-body">
+                <div class="unlock-map-card">
+                    <div class="map-icon" id="unlock-map-icon">🏙️</div>
+                    <h3 id="unlocked-map-name">Suburbs</h3>
+                    <p class="map-bonus" id="unlock-bonus">+20% Income Bonus</p>
+                </div>
+                <p class="unlock-description" id="unlock-description"></p>
+                <div class="unlock-actions">
+                    <button id="switch-map-btn" class="btn success">
+                        <i class="fas fa-map-marked-alt"></i>
+                        Switch to New District
+                    </button>
+                    <button id="stay-map-btn" class="btn secondary">
+                        Stay in Current District
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
+    <div id="menu-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Game Menu</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="menu-options">
+                    <button class="menu-btn" onclick="showHelp()">
+                        <i class="fas fa-question-circle"></i>
+                        How to Play
+                    </button>
+                    <button class="menu-btn" onclick="showStats()">
+                        <i class="fas fa-chart-bar"></i>
+                        Game Statistics
+                    </button>
+                    <button class="menu-btn" onclick="saveGame()">
+                        <i class="fas fa-save"></i>
+                        Save Game
+                    </button>
+                    <button class="menu-btn" onclick="loadGame()">
+                        <i class="fas fa-download"></i>
+                        Load Game
+                    </button>
+                    <button class="menu-btn danger" onclick="resetGame()">
+                        <i class="fas fa-trash"></i>
+                        Reset Game
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dragging Ghost -->
+    <div id="drag-ghost" class="drag-ghost"></div>
 
     <!-- Notification -->
     <div id="notification" class="notification">
